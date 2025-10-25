@@ -1,0 +1,26 @@
+# Firebase Service Accounts (Sensitive Data)
+config/firebase-service-account.json
+config/firebase-seller-service-account.json
+
+# Environment Variables
+.env
+
+# Node Modules
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

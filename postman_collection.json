@@ -1,0 +1,324 @@
+{
+	"info": {
+		"_postman_id": "multi-vendor-e-shop",
+		"name": "Multi-vendor E-shop API",
+		"description": "API collection for Multi-vendor E-shop application",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "User Management",
+			"item": [
+				{
+					"name": "Create User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Test User\",\n    \"email\": \"test@example.com\",\n    \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/user/create-user",
+							"host": ["{{baseUrl}}"],
+							"path": ["user", "create-user"]
+						}
+					}
+				},
+				{
+					"name": "Activate User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"activation_token\": \"your-activation-token\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/user/activation",
+							"host": ["{{baseUrl}}"],
+							"path": ["user", "activation"]
+						}
+					}
+				},
+				{
+					"name": "Login User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"test@example.com\",\n    \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/user/login-user",
+							"host": ["{{baseUrl}}"],
+							"path": ["user", "login-user"]
+						}
+					}
+				},
+				{
+					"name": "Get User",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/user/getuser",
+							"host": ["{{baseUrl}}"],
+							"path": ["user", "getuser"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Shop Management",
+			"item": [
+				{
+					"name": "Create Shop",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "name",
+									"value": "Test Shop",
+									"type": "text"
+								},
+								{
+									"key": "description",
+									"value": "Test shop description",
+									"type": "text"
+								},
+								{
+									"key": "address",
+									"value": "Test address",
+									"type": "text"
+								},
+								{
+									"key": "zipCode",
+									"value": "12345",
+									"type": "text"
+								},
+								{
+									"key": "phoneNumber",
+									"value": "1234567890",
+									"type": "text"
+								},
+								{
+									"key": "avatar",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/shop/create-shop",
+							"host": ["{{baseUrl}}"],
+							"path": ["shop", "create-shop"]
+						}
+					}
+				},
+				{
+					"name": "Get Shop Info",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/shop/get-shop-info/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["shop", "get-shop-info", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "shop-id-here"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Product Management",
+			"item": [
+				{
+					"name": "Create Product",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "name",
+									"value": "Test Product",
+									"type": "text"
+								},
+								{
+									"key": "description",
+									"value": "Test product description",
+									"type": "text"
+								},
+								{
+									"key": "price",
+									"value": "100",
+									"type": "text"
+								},
+								{
+									"key": "stock",
+									"value": "10",
+									"type": "text"
+								},
+								{
+									"key": "images",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/product/create-product",
+							"host": ["{{baseUrl}}"],
+							"path": ["product", "create-product"]
+						}
+					}
+				},
+				{
+					"name": "Get All Products",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/product/get-all-products",
+							"host": ["{{baseUrl}}"],
+							"path": ["product", "get-all-products"]
+						}
+					}
+				},
+				{
+					"name": "Get Admin All Products",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/product/admin-all-products",
+							"host": ["{{baseUrl}}"],
+							"path": ["product", "admin-all-products"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Order Management",
+			"item": [
+				{
+					"name": "Create Order",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"cart\": [],\n    \"shippingAddress\": {},\n    \"user\": \"user-id\",\n    \"totalPrice\": 100\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/order/create-order",
+							"host": ["{{baseUrl}}"],
+							"path": ["order", "create-order"]
+						}
+					}
+				},
+				{
+					"name": "Get All Orders",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/order/get-all-orders/:userId",
+							"host": ["{{baseUrl}}"],
+							"path": ["order", "get-all-orders", ":userId"],
+							"variable": [
+								{
+									"key": "userId",
+									"value": "user-id-here"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Payment",
+			"item": [
+				{
+					"name": "Process Payment",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"amount\": 100,\n    \"currency\": \"usd\",\n    \"payment_method\": \"card\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/payment/process",
+							"host": ["{{baseUrl}}"],
+							"path": ["payment", "process"]
+						}
+					}
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [""]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [""]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:5000/api/v2",
+			"type": "string"
+		}
+	]
+} 
