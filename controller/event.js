@@ -2,7 +2,8 @@ const express = require("express");
 const catchAsyncErrors = require("../middleware/catchAsyncErrors");
 const { upload } = require("../multer");
 const Shop = require("../model/shop");
-const Event = require("../model/event");
+const User = require("../model/user"); // Add User model
+const Product = require("../model/product");
 const Order = require("../model/order");
 const ErrorHandler = require("../utils/ErrorHandler");
 const { isSeller, isAdmin, isAuthenticated } = require("../middleware/auth");
@@ -14,107 +15,117 @@ const getS3Url = (filename) => {
   return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${filename}`;
 };
 
-// create event
+// create product - UPDATED to support both sellers and regular users
 router.post(
-  "/create-event",
+  "/create-product",
+  isAuthenticated, // Only require authentication, not seller-specific
   upload.array("images"),
   catchAsyncErrors(async (req, res, next) => {
     try {
-      const shopId = req.body.shopId;
-      const shop = await Shop.findById(shopId);
-      if (!shop) {
-        return next(new ErrorHandler("Shop Id is invalid!", 400));
-      } else {
-        const files = req.files;
-        const imageUrls = files.map((file) => ({
-          url: getS3Url(file.key),
-          key: file.key
-        }));
+      const { shopId, userId } = req.body;
 
-        const eventData = req.body;
-        eventData.images = imageUrls;
-        eventData.shop = shop;
-
-        const event = await Event.create(eventData);
-
-        res.status(201).json({
-          success: true,
-          event,
-        });
+      // Accept either shopId (for sellers) or userId (for regular users posting ads)
+      if (!shopId && !userId) {
+        return next(new ErrorHandler("Shop ID or User ID is required!", 400));
       }
-    } catch (error) {
-      return next(new ErrorHandler(error, 400));
-    }
-  })
-);
 
-// create event by admin
-router.post(
-  "/admin-create-event",
-  isAuthenticated,
-  isAdmin("Admin"),
-  upload.array("images"),
-  catchAsyncErrors(async (req, res, next) => {
-    try {
+      // Validate shop if shopId is provided
+      if (shopId) {
+        const shop = await Shop.findById(shopId);
+        if (!shop) {
+          return next(new ErrorHandler("Shop not found!", 400));
+        }
+      }
+
+      // Validate user if userId is provided
+      if (userId) {
+        const user = await User.findById(userId);
+        if (!user) {
+          return next(new ErrorHandler("User not found!", 400));
+        }
+      }
+
+      // Handle image uploads
       if (!req.files || req.files.length === 0) {
         return next(new ErrorHandler("Please upload at least one image", 400));
       }
 
       const files = req.files;
       const imageUrls = files.map((file) => ({
-        url: getS3Url(file.key),
-        key: file.key
+        url: file.location || getS3Url(file.key), // Use file.location for S3 or construct URL
+        key: file.key,
       }));
 
-      const eventData = req.body;
-      eventData.images = imageUrls;
-      eventData.isAdminEvent = true;
+      const productData = req.body;
+      productData.images = imageUrls;
+
+      // Set the owner - shopId for sellers, userId for regular users
+      if (shopId) {
+        productData.shopId = shopId;
+      }
+      if (userId) {
+        productData.userId = userId;
+      }
 
       // Validate required fields
-      const requiredFields = ['name', 'description', 'category', 'originalPrice', 'discountPrice', 'stock', 'start_Date', 'Finish_Date'];
+      const requiredFields = [
+        "name",
+        "description",
+        "category",
+        "subcategory",
+        "discountPrice",
+        "stock",
+        "unit",
+        "unitCount",
+      ];
       for (const field of requiredFields) {
-        if (!eventData[field]) {
+        if (!productData[field]) {
           return next(new ErrorHandler(`Please provide ${field}`, 400));
         }
       }
 
-      const event = await Event.create(eventData);
+      const product = await Product.create(productData);
 
       res.status(201).json({
         success: true,
-        event,
+        product,
       });
     } catch (error) {
-      // Log the error for debugging
-      console.error('Error creating event:', error);
+      console.error("Error creating product:", error);
       return next(new ErrorHandler(error.message, 400));
     }
   })
 );
 
-// get all events
-router.get("/get-all-events", async (req, res, next) => {
+// get all products
+router.get("/get-all-products", async (req, res, next) => {
   try {
-    const events = await Event.find();
-    res.status(201).json({
+    const products = await Product.find()
+      .populate("category", "name")
+      .populate("subcategory", "name")
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
       success: true,
-      events,
+      products,
     });
   } catch (error) {
     return next(new ErrorHandler(error, 400));
   }
 });
 
-// get all events of a shop
+// get all products of a shop
 router.get(
-  "/get-all-events/:id",
+  "/get-all-products/:id",
   catchAsyncErrors(async (req, res, next) => {
     try {
-      const events = await Event.find({ shopId: req.params.id });
+      const products = await Product.find({ shopId: req.params.id })
+        .populate("category", "name")
+        .populate("subcategory", "name");
 
-      res.status(201).json({
+      res.status(200).json({
         success: true,
-        events,
+        products,
       });
     } catch (error) {
       return next(new ErrorHandler(error, 400));
@@ -122,58 +133,160 @@ router.get(
   })
 );
 
-// delete event of a shop
+// get all products of a user (for regular users who post ads)
+router.get(
+  "/get-user-products/:userId",
+  catchAsyncErrors(async (req, res, next) => {
+    try {
+      const products = await Product.find({ userId: req.params.userId })
+        .populate("category", "name")
+        .populate("subcategory", "name");
+
+      res.status(200).json({
+        success: true,
+        products,
+      });
+    } catch (error) {
+      return next(new ErrorHandler(error, 400));
+    }
+  })
+);
+
+// delete product of a shop or user
 router.delete(
-  "/delete-shop-event/:id",
-  isSeller,
+  "/delete-product/:id",
+  isAuthenticated,
   catchAsyncErrors(async (req, res, next) => {
     try {
       const productId = req.params.id;
+      const product = await Product.findById(productId);
 
-      const eventData = await Event.findById(productId);
-
-      eventData.images.forEach((imageUrl) => {
-        const filename = imageUrl.key;
-        const filePath = `uploads/${filename}`;
-
-        fs.unlink(filePath, (err) => {
-          if (err) {
-            console.log(err);
-          }
-        });
-      });
-
-      const event = await Event.findByIdAndDelete(productId);
-
-      if (!event) {
-        return next(new ErrorHandler("Event not found with this id!", 500));
+      if (!product) {
+        return next(new ErrorHandler("Product not found!", 404));
       }
 
-      res.status(201).json({
+      // Check if user has permission to delete
+      const isOwner =
+        (product.shopId &&
+          product.shopId.toString() === req.seller?._id?.toString()) ||
+        (product.userId &&
+          product.userId.toString() === req.user?._id?.toString());
+
+      if (!isOwner && req.user?.role !== "Admin") {
+        return next(
+          new ErrorHandler(
+            "You don't have permission to delete this product",
+            403
+          )
+        );
+      }
+
+      // Delete images from S3 if needed
+      if (product.images && product.images.length > 0) {
+        product.images.forEach((image) => {
+          // If using local storage
+          if (image.key && !image.url.startsWith("http")) {
+            const filePath = `uploads/${image.key}`;
+            fs.unlink(filePath, (err) => {
+              if (err) {
+                console.log("Error deleting file:", err);
+              }
+            });
+          }
+          // For S3, you might want to implement S3 deletion here
+        });
+      }
+
+      await Product.findByIdAndDelete(productId);
+
+      res.status(200).json({
         success: true,
-        message: "Event Deleted successfully!",
+        message: "Product deleted successfully!",
       });
     } catch (error) {
-      return next(new ErrorHandler(error, 400));
+      return next(new ErrorHandler(error.message, 400));
     }
   })
 );
 
-// all events --- for admin
+// update product
+router.put(
+  "/update-product/:id",
+  isAuthenticated,
+  upload.array("images"),
+  catchAsyncErrors(async (req, res, next) => {
+    try {
+      const productId = req.params.id;
+      const product = await Product.findById(productId);
+
+      if (!product) {
+        return next(new ErrorHandler("Product not found!", 404));
+      }
+
+      // Check if user has permission to update
+      const isOwner =
+        (product.shopId &&
+          product.shopId.toString() === req.seller?._id?.toString()) ||
+        (product.userId &&
+          product.userId.toString() === req.user?._id?.toString());
+
+      if (!isOwner && req.user?.role !== "Admin") {
+        return next(
+          new ErrorHandler(
+            "You don't have permission to update this product",
+            403
+          )
+        );
+      }
+
+      // Handle new images if uploaded
+      let imageUrls = product.images;
+      if (req.files && req.files.length > 0) {
+        const files = req.files;
+        imageUrls = files.map((file) => ({
+          url: file.location || getS3Url(file.key),
+          key: file.key,
+        }));
+      }
+
+      const updateData = {
+        ...req.body,
+        images: imageUrls,
+      };
+
+      const updatedProduct = await Product.findByIdAndUpdate(
+        productId,
+        updateData,
+        { new: true, runValidators: true }
+      );
+
+      res.status(200).json({
+        success: true,
+        product: updatedProduct,
+      });
+    } catch (error) {
+      return next(new ErrorHandler(error.message, 400));
+    }
+  })
+);
+
+// all products --- for admin
 router.get(
-  "/admin-all-events",
+  "/admin-all-products",
   isAuthenticated,
   isAdmin("Admin"),
   catchAsyncErrors(async (req, res, next) => {
     try {
-      const events = await Event.find()
-        .populate('category', 'name')
-        .sort({
-          createdAt: -1,
-        });
-      res.status(201).json({
+      const products = await Product.find()
+        .populate("category", "name")
+        .populate("subcategory", "name")
+        .populate("shopId", "name")
+        .populate("userId", "name email")
+        .sort({ createdAt: -1 });
+
+      res.status(200).json({
         success: true,
-        events,
+        products,
       });
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));
@@ -181,15 +294,19 @@ router.get(
   })
 );
 
-// review for a Event
+// review for a product
 router.put(
-  "/create-new-review-event",
+  "/create-new-review",
   isAuthenticated,
   catchAsyncErrors(async (req, res, next) => {
     try {
       const { user, rating, comment, productId, orderId } = req.body;
 
-      const event = await Event.findById(productId);
+      const product = await Product.findById(productId);
+
+      if (!product) {
+        return next(new ErrorHandler("Product not found!", 404));
+      }
 
       const review = {
         user,
@@ -198,42 +315,96 @@ router.put(
         productId,
       };
 
-      const isReviewed = event.reviews.find(
-        (rev) => rev.user._id === req.user._id
+      const isReviewed = product.reviews.find(
+        (rev) => rev.user._id.toString() === req.user._id.toString()
       );
 
       if (isReviewed) {
-        event.reviews.forEach((rev) => {
-          if (rev.user._id === req.user._id) {
-            (rev.rating = rating), (rev.comment = comment), (rev.user = user);
+        product.reviews.forEach((rev) => {
+          if (rev.user._id.toString() === req.user._id.toString()) {
+            rev.rating = rating;
+            rev.comment = comment;
+            rev.user = user;
           }
         });
       } else {
-        event.reviews.push(review);
+        product.reviews.push(review);
       }
 
       let avg = 0;
-
-      event.reviews.forEach((rev) => {
+      product.reviews.forEach((rev) => {
         avg += rev.rating;
       });
 
-      event.ratings = avg / event.reviews.length;
+      product.ratings = avg / product.reviews.length;
 
-      await event.save({ validateBeforeSave: false });
+      await product.save({ validateBeforeSave: false });
 
-      await Order.findByIdAndUpdate(
-        orderId,
-        { $set: { "cart.$[elem].isReviewed": true } },
-        { arrayFilters: [{ "elem._id": productId }], new: true }
-      );
+      if (orderId) {
+        await Order.findByIdAndUpdate(
+          orderId,
+          { $set: { "cart.$[elem].isReviewed": true } },
+          { arrayFilters: [{ "elem._id": productId }], new: true }
+        );
+      }
 
       res.status(200).json({
         success: true,
-        message: "Reviwed succesfully!",
+        message: "Reviewed successfully!",
       });
     } catch (error) {
-      return next(new ErrorHandler(error, 400));
+      return next(new ErrorHandler(error.message, 400));
+    }
+  })
+);
+
+// Get single product details
+router.get(
+  "/get-product/:id",
+  catchAsyncErrors(async (req, res, next) => {
+    try {
+      const product = await Product.findById(req.params.id)
+        .populate("category", "name")
+        .populate("subcategory", "name")
+        .populate("shopId", "name avatar address")
+        .populate("userId", "name avatar");
+
+      if (!product) {
+        return next(new ErrorHandler("Product not found!", 404));
+      }
+
+      res.status(200).json({
+        success: true,
+        product,
+      });
+    } catch (error) {
+      return next(new ErrorHandler(error.message, 400));
+    }
+  })
+);
+
+// get all products of a user (for regular users who post ads)
+router.get(
+  "/get-user-products/:userId",
+  catchAsyncErrors(async (req, res, next) => {
+    try {
+      const { userId } = req.params;
+
+      if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+        return next(new ErrorHandler("Invalid user ID format", 400));
+      }
+
+      const products = await Product.find({ userId })
+        .populate("category", "name")
+        .populate("subcategory", "name")
+        .sort({ createdAt: -1 });
+
+      res.status(200).json({
+        success: true,
+        products,
+      });
+    } catch (error) {
+      return next(new ErrorHandler(error.message, 400));
     }
   })
 );
