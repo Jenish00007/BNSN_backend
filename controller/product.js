@@ -6,6 +6,7 @@ const Product = require("../model/product");
 const Order = require("../model/order");
 const Shop = require("../model/shop");
 const Category = require("../model/Category");
+const User = require("../model/user");
 const Subcategory = require("../model/Subcategory");
 const Unit = require("../model/Unit");
 const { upload, handleMulterError } = require("../multer");
@@ -24,11 +25,24 @@ router.post(
   handleMulterError,
   catchAsyncErrors(async (req, res, next) => {
     try {
-      const { shopId, category, subcategory } = req.body;
-      
+      const { shopId, userId, category, subcategory } = req.body;
+      console.log(!userId);
       // Validate shop ID
-      if (!shopId || !isValidObjectId(shopId)) {
-        return next(new ErrorHandler("Invalid shop ID format", 400));
+      if (shopId) {
+        // Validate shopId only if provided
+        if (!isValidObjectId(shopId)) {
+          return next(new ErrorHandler("Invalid shop ID format", 400));
+        }
+      } else if (userId) {
+        // Validate userId only if provided
+        if (!isValidObjectId(userId)) {
+          return next(new ErrorHandler("Invalid user ID format", 400));
+        }
+      } else {
+        // Neither provided
+        return next(
+          new ErrorHandler("Either shopId or userId is required", 400)
+        );
       }
 
       // Validate category ID
@@ -42,9 +56,19 @@ router.post(
       }
 
       // Check if shop exists
-      const shop = await Shop.findById(shopId);
-      if (!shop) {
-        return next(new ErrorHandler("Shop not found!", 404));
+      let shop = null;
+
+      if (shopId) {
+        shop = await Shop.findById(shopId);
+        if (!shop) {
+          return next(new ErrorHandler("Shop not found!", 404));
+        }
+      } else if (userId) {
+        // Optional: You can verify that the user exists if needed
+        const user = await User.findById(userId);
+        if (!user) {
+          return next(new ErrorHandler("User not found!", 404));
+        }
       }
 
       // Check if category exists
@@ -56,10 +80,15 @@ router.post(
       // Check if subcategory exists and belongs to the selected category
       const subcategoryExists = await Subcategory.findOne({
         _id: subcategory,
-        category: category
+        category: category,
       });
       if (!subcategoryExists) {
-        return next(new ErrorHandler("Subcategory not found or does not belong to the selected category!", 404));
+        return next(
+          new ErrorHandler(
+            "Subcategory not found or does not belong to the selected category!",
+            404
+          )
+        );
       }
 
       const files = req.files;
@@ -87,14 +116,14 @@ router.get(
   catchAsyncErrors(async (req, res, next) => {
     try {
       const shopId = req.params.id;
-      
+
       if (!shopId || !isValidObjectId(shopId)) {
         return next(new ErrorHandler("Invalid shop ID format", 400));
       }
 
       const products = await Product.find({ shopId })
-        .populate('category', 'name')
-        .populate('subcategory', 'name');
+        .populate("category", "name")
+        .populate("subcategory", "name");
 
       res.status(200).json({
         success: true,
@@ -119,7 +148,7 @@ router.delete(
       }
 
       const productData = await Product.findById(productId);
-      
+
       if (!productData) {
         return next(new ErrorHandler("Product not found!", 404));
       }
@@ -142,15 +171,15 @@ router.get(
   catchAsyncErrors(async (req, res, next) => {
     try {
       const { page = 1, limit = 10 } = req.query;
-      
+
       // Calculate skip value for pagination
       const skip = (parseInt(page) - 1) * parseInt(limit);
       const limitValue = parseInt(limit);
 
       // Execute query with sorting and pagination
       const products = await Product.find()
-        .populate('category', 'name')
-        .populate('subcategory', 'name')
+        .populate("category", "name")
+        .populate("subcategory", "name")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitValue);
@@ -164,7 +193,7 @@ router.get(
         total,
         currentPage: parseInt(page),
         totalPages: Math.ceil(total / limitValue),
-        hasMore: skip + limitValue < total
+        hasMore: skip + limitValue < total,
       });
     } catch (error) {
       return next(new ErrorHandler(error.message, 400));
@@ -189,7 +218,7 @@ router.put(
       }
 
       const product = await Product.findById(productId);
-      
+
       if (!product) {
         return next(new ErrorHandler("Product not found!", 404));
       }
@@ -250,8 +279,8 @@ router.get(
   catchAsyncErrors(async (req, res, next) => {
     try {
       const products = await Product.find()
-        .populate('category', 'name')
-        .populate('subcategory', 'name')
+        .populate("category", "name")
+        .populate("subcategory", "name")
         .sort({
           createdAt: -1,
         });
@@ -283,7 +312,12 @@ router.put(
       }
       // Check if the product belongs to the seller
       if (product.shopId !== req.seller._id.toString()) {
-        return next(new ErrorHandler("You are not authorized to update this product!", 403));
+        return next(
+          new ErrorHandler(
+            "You are not authorized to update this product!",
+            403
+          )
+        );
       }
 
       // Parse fields from req.body
@@ -320,56 +354,63 @@ router.put(
       if (subcategory && category) {
         const subcategoryExists = await Subcategory.findOne({
           _id: subcategory,
-          category: category
+          category: category,
         });
         if (!subcategoryExists) {
-          return next(new ErrorHandler("Subcategory not found or does not belong to the selected category!", 404));
+          return next(
+            new ErrorHandler(
+              "Subcategory not found or does not belong to the selected category!",
+              404
+            )
+          );
         }
       }
 
       // Handle images: merge existing image URLs and new uploads
       let images = [];
-      
+
       // Parse existing image URLs from req.body.existingImages
       let existingImages = [];
       if (req.body.existingImages) {
         try {
           // Handle both string and array formats
-          if (typeof req.body.existingImages === 'string') {
+          if (typeof req.body.existingImages === "string") {
             existingImages = JSON.parse(req.body.existingImages);
           } else if (Array.isArray(req.body.existingImages)) {
             existingImages = req.body.existingImages;
           }
-          console.log('Existing images parsed:', existingImages);
+          console.log("Existing images parsed:", existingImages);
         } catch (parseError) {
-          console.error('Error parsing existingImages:', parseError);
+          console.error("Error parsing existingImages:", parseError);
           return next(new ErrorHandler("Invalid existing images format", 400));
         }
       }
-      
+
       // Add existing images to the images array
       images = images.concat(existingImages);
-      
+
       // Add new uploaded images
       if (req.files && req.files.length > 0) {
-        const uploadedUrls = req.files.map(file => file.location);
-        console.log('New uploaded images:', uploadedUrls);
+        const uploadedUrls = req.files.map((file) => file.location);
+        console.log("New uploaded images:", uploadedUrls);
         images = images.concat(uploadedUrls);
       }
 
-      console.log('Total images before validation:', images);
+      console.log("Total images before validation:", images);
 
       // Validate that we have at least one image
       if (images.length === 0) {
-        return next(new ErrorHandler("At least one product image is required", 400));
+        return next(
+          new ErrorHandler("At least one product image is required", 400)
+        );
       }
 
       // Validate image URLs (basic check)
-      const validImages = images.filter(img => {
-        return typeof img === 'string' && img.trim().length > 0;
+      const validImages = images.filter((img) => {
+        return typeof img === "string" && img.trim().length > 0;
       });
 
-      console.log('Valid images after filtering:', validImages);
+      console.log("Valid images after filtering:", validImages);
 
       if (validImages.length === 0) {
         return next(new ErrorHandler("No valid images provided", 400));
@@ -411,14 +452,14 @@ router.get(
   catchAsyncErrors(async (req, res, next) => {
     try {
       const { id } = req.params;
-      const { limit = 10, offset = 1, type = 'all' } = req.query;
+      const { limit = 10, offset = 1, type = "all" } = req.query;
       const { zoneId, moduleId } = req.headers;
 
       // Build query
       const query = {};
-      
+
       // If ID is provided, check if it's a category or subcategory
-      if (id && id !== '0') {
+      if (id && id !== "0") {
         // First check if it's a category
         const category = await Category.findById(id);
         if (category) {
@@ -429,7 +470,9 @@ router.get(
           if (subcategory) {
             query.subcategory = id;
           } else {
-            return next(new ErrorHandler("Invalid category or subcategory ID", 404));
+            return next(
+              new ErrorHandler("Invalid category or subcategory ID", 404)
+            );
           }
         }
       }
@@ -440,7 +483,7 @@ router.get(
       }
 
       // Add type filter if not 'all'
-      if (type !== 'all') {
+      if (type !== "all") {
         query.type = type;
       }
 
@@ -450,8 +493,8 @@ router.get(
 
       // Execute query with sorting and pagination
       const products = await Product.find(query)
-        .populate('category', 'name')
-        .populate('subcategory', 'name')
+        .populate("category", "name")
+        .populate("subcategory", "name")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitValue);
@@ -464,10 +507,44 @@ router.get(
         products,
         total,
         currentPage: parseInt(offset),
-        totalPages: Math.ceil(total / limitValue)
+        totalPages: Math.ceil(total / limitValue),
       });
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));
+    }
+  })
+);
+
+// get all products of a user (non-shop listings)
+router.get(
+  "/get-user-products/:userId",
+  catchAsyncErrors(async (req, res, next) => {
+    try {
+      const { userId } = req.params;
+
+      // Validate user ID format
+      if (!userId || !isValidObjectId(userId)) {
+        return next(new ErrorHandler("Invalid user ID format", 400));
+      }
+
+      // Check if user exists
+      const userExists = await User.findById(userId);
+      if (!userExists) {
+        return next(new ErrorHandler("User not found!", 404));
+      }
+
+      // Fetch all products posted by this user
+      const products = await Product.find({ userId })
+        .populate("category", "name")
+        .populate("subcategory", "name")
+        .sort({ createdAt: -1 });
+
+      res.status(200).json({
+        success: true,
+        products,
+      });
+    } catch (error) {
+      return next(new ErrorHandler(error.message, 400));
     }
   })
 );
@@ -477,7 +554,13 @@ router.get(
   "/items/search",
   catchAsyncErrors(async (req, res, next) => {
     try {
-      const { name, category_id, type = 'all', offset = 1, limit = 50 } = req.query;
+      const {
+        name,
+        category_id,
+        type = "all",
+        offset = 1,
+        limit = 50,
+      } = req.query;
       const { zoneId, moduleId } = req.headers;
 
       // Build search query
@@ -486,14 +569,14 @@ router.get(
       // Add name search if provided
       if (name) {
         query.$or = [
-          { name: { $regex: name, $options: 'i' } },
-          { description: { $regex: name, $options: 'i' } },
-          { tags: { $regex: name, $options: 'i' } }
+          { name: { $regex: name, $options: "i" } },
+          { description: { $regex: name, $options: "i" } },
+          { tags: { $regex: name, $options: "i" } },
         ];
       }
 
       // Add category filter if provided and not '0'
-      if (category_id && category_id !== '0') {
+      if (category_id && category_id !== "0") {
         // First check if it's a category
         const category = await Category.findById(category_id);
         if (category) {
@@ -514,7 +597,7 @@ router.get(
       }
 
       // Add type filter if not 'all'
-      if (type !== 'all') {
+      if (type !== "all") {
         query.type = type;
       }
 
@@ -524,8 +607,8 @@ router.get(
 
       // Execute search with sorting and pagination
       const products = await Product.find(query)
-        .populate('category', 'name')
-        .populate('subcategory', 'name')
+        .populate("category", "name")
+        .populate("subcategory", "name")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitValue);
@@ -534,36 +617,45 @@ router.get(
       const total = await Product.countDocuments(query);
 
       // Get category and subcategory information for each product
-      const productsWithDetails = await Promise.all(products.map(async (product) => {
-        const productObj = product.toObject();
-        
-        // Get category details if not populated
-        if (!productObj.category || typeof productObj.category === 'string') {
-          const category = await Category.findById(product.category);
-          productObj.category = category ? {
-            _id: category._id,
-            name: category.name
-          } : null;
-        }
+      const productsWithDetails = await Promise.all(
+        products.map(async (product) => {
+          const productObj = product.toObject();
 
-        // Get subcategory details if not populated
-        if (!productObj.subcategory || typeof productObj.subcategory === 'string') {
-          const subcategory = await Subcategory.findById(product.subcategory);
-          productObj.subcategory = subcategory ? {
-            _id: subcategory._id,
-            name: subcategory.name
-          } : null;
-        }
+          // Get category details if not populated
+          if (!productObj.category || typeof productObj.category === "string") {
+            const category = await Category.findById(product.category);
+            productObj.category = category
+              ? {
+                  _id: category._id,
+                  name: category.name,
+                }
+              : null;
+          }
 
-        return productObj;
-      }));
+          // Get subcategory details if not populated
+          if (
+            !productObj.subcategory ||
+            typeof productObj.subcategory === "string"
+          ) {
+            const subcategory = await Subcategory.findById(product.subcategory);
+            productObj.subcategory = subcategory
+              ? {
+                  _id: subcategory._id,
+                  name: subcategory.name,
+                }
+              : null;
+          }
+
+          return productObj;
+        })
+      );
 
       res.status(200).json({
         success: true,
         products: productsWithDetails,
         total,
         currentPage: parseInt(offset),
-        totalPages: Math.ceil(total / limitValue)
+        totalPages: Math.ceil(total / limitValue),
       });
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));
@@ -577,31 +669,63 @@ router.get(
   catchAsyncErrors(async (req, res, next) => {
     try {
       // Get units from the database
-      const units = await Unit.find({ isActive: true })
-        .sort({ sortOrder: 1, name: 1 });
+      const units = await Unit.find({ isActive: true }).sort({
+        sortOrder: 1,
+        name: 1,
+      });
 
       // If no units found in database, return default units
       if (units.length === 0) {
         const defaultUnits = [
-          { id: 'kg', name: 'Kilograms (kg)', description: 'Weight in kilograms', category: 'weight' },
-          { id: 'g', name: 'Grams (g)', description: 'Weight in grams', category: 'weight' },
-          { id: 'pcs', name: 'Pieces (pcs)', description: 'Individual items', category: 'count' },
-          { id: 'ml', name: 'Milliliters (ml)', description: 'Volume in milliliters', category: 'volume' },
-          { id: 'ltr', name: 'Liters (ltr)', description: 'Volume in liters', category: 'volume' },
-          { id: 'pack', name: 'Pack', description: 'Packaged items', category: 'count' }
+          {
+            id: "kg",
+            name: "Kilograms (kg)",
+            description: "Weight in kilograms",
+            category: "weight",
+          },
+          {
+            id: "g",
+            name: "Grams (g)",
+            description: "Weight in grams",
+            category: "weight",
+          },
+          {
+            id: "pcs",
+            name: "Pieces (pcs)",
+            description: "Individual items",
+            category: "count",
+          },
+          {
+            id: "ml",
+            name: "Milliliters (ml)",
+            description: "Volume in milliliters",
+            category: "volume",
+          },
+          {
+            id: "ltr",
+            name: "Liters (ltr)",
+            description: "Volume in liters",
+            category: "volume",
+          },
+          {
+            id: "pack",
+            name: "Pack",
+            description: "Packaged items",
+            category: "count",
+          },
         ];
 
         // Create default units in database
         await Unit.insertMany(defaultUnits);
-        
+
         res.status(200).json({
           success: true,
-          data: defaultUnits
+          data: defaultUnits,
         });
       } else {
         res.status(200).json({
           success: true,
-          data: units
+          data: units,
         });
       }
     } catch (error) {

@@ -51,7 +51,6 @@ const productSchema = new mongoose.Schema({
       type: String,
     },
   ],
-
   reviews: [
     {
       user: {
@@ -75,13 +74,20 @@ const productSchema = new mongoose.Schema({
   ratings: {
     type: Number,
   },
+  // For seller-created products
   shopId: {
     type: String,
-    required: true,
+    required: false, // Made optional to support user-created products
   },
   shop: {
     type: Object,
-    required: true,
+    required: false, // Made optional to support user-created products
+  },
+  // For user-created products (marketplace/OLX style)
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: false, // Optional since sellers can also create products
   },
   sold_out: {
     type: Number,
@@ -92,5 +98,21 @@ const productSchema = new mongoose.Schema({
     default: Date.now(),
   },
 });
+
+// Add validation to ensure either shopId or userId exists
+productSchema.pre('validate', function(next) {
+  if (!this.shopId && !this.userId) {
+    this.invalidate('shopId', 'Either shopId or userId must be provided');
+    this.invalidate('userId', 'Either shopId or userId must be provided');
+  }
+  next();
+});
+
+// Add indexes for better query performance
+productSchema.index({ shopId: 1 });
+productSchema.index({ userId: 1 });
+productSchema.index({ category: 1 });
+productSchema.index({ subcategory: 1 });
+productSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model("Product", productSchema);
