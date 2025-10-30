@@ -366,16 +366,39 @@ router.get(
       const product = await Product.findById(req.params.id)
         .populate("category", "name")
         .populate("subcategory", "name")
-        .populate("shopId", "name avatar address")
-        .populate("userId", "name avatar");
+        .populate("shopId", "name avatar address email phoneNumber")
+        .populate("userId", "name avatar email phoneNumber");
 
       if (!product) {
         return next(new ErrorHandler("Product not found!", 404));
       }
 
+      // Convert product to object to modify it
+      const productObj = product.toObject();
+
+      // If product has shopId, copy populated shopId to shop field
+      if (productObj.shopId && typeof productObj.shopId === "object") {
+        productObj.shop = productObj.shopId;
+      }
+
+      // If product has userId (customer upload), create shop object from user info
+      if (
+        !productObj.shop &&
+        productObj.userId &&
+        typeof productObj.userId === "object"
+      ) {
+        productObj.shop = {
+          _id: productObj.userId._id,
+          name: productObj.userId.name,
+          avatar: productObj.userId.avatar,
+          email: productObj.userId.email,
+          phoneNumber: productObj.userId.phoneNumber,
+        };
+      }
+
       res.status(200).json({
         success: true,
-        product,
+        product: productObj,
       });
     } catch (error) {
       return next(new ErrorHandler(error.message, 400));
