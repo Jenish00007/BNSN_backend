@@ -2,11 +2,15 @@ const express = require("express");
 const ErrorHandler = require("./middleware/error");
 const connectDatabase = require("./db/Database");
 const app = express();
+const http = require("http").createServer(app);
+const { Server } = require("socket.io");
 
 const cookieParser = require("cookie-parser");
 const bodyParser = require("body-parser");
 const cors = require("cors");
 const path = require("path");
+const Messages = require("./model/messages");
+const Conversation = require("./model/conversation");
 
 // config
 if (process.env.NODE_ENV !== "PRODUCTION") {
@@ -19,8 +23,22 @@ if (process.env.NODE_ENV !== "PRODUCTION") {
 connectDatabase();
 
 // create server
-const server = app.listen(process.env.PORT, () => {
+const server = http.listen(process.env.PORT, () => {
   console.log(`Server is running on http://localhost:${process.env.PORT}`);
+});
+
+// initialize socket.io
+const io = new Server(server, {
+  cors: {
+    origin: [
+      "http://localhost:3000",
+      "http://localhost:3001",
+      "http://192.168.31.121:19006",
+      "exp://192.168.31.121:8081",
+    ],
+    credentials: true,
+    methods: ["GET", "POST"],
+  },
 });
 
 // middlewares
@@ -30,7 +48,12 @@ app.use(cookieParser());
 
 app.use(
   cors({
-    origin: ["http://localhost:3000", "http://localhost:3001"],
+    origin: [
+      "http://localhost:3000",
+      "http://localhost:3001",
+      "http://192.168.31.121:19006",
+      "exp://192.168.31.121:8081",
+    ],
     credentials: true,
   })
 );
@@ -126,6 +149,114 @@ app.use("/v2/admin", adminRoutes);
 app.use("/v2/deliveryman", deliverymanRoutes);
 app.use("/v2/units", unitRoutes);
 app.use("/v2/fcm", fcmRoutes);
+
+// Socket.io connection handling
+io.on("connection", (socket) => {
+  console.log("User connected:", socket.id);
+
+  // Join chat room
+  socket.on("join-chat-room", async (data) => {
+    const { userId, conversationId } = data;
+    const roomName = `chat-${conversationId}`;
+    socket.join(roomName);
+    console.log(`User ${userId} joined room: ${roomName}`);
+  });
+
+  // Leave chat room
+  socket.on("leave-chat-room", async (data) => {
+    const { userId, conversationId } = data;
+    const roomName = `chat-${conversationId}`;
+    socket.leave(roomName);
+    console.log(`User ${userId} left room: ${roomName}`);
+  });
+
+  // Send message
+  socket.on("send-message", async (data) => {
+    try {
+      const { conversationId, sender, text } = data;
+
+      // Save message to database
+      const message = new Messages({
+        conversationId: conversationId,
+        text: text,
+        sender: sender,
+      });
+
+      await message.save();
+
+      // Update conversation last message
+      await Conversation.findByIdAndUpdate(conversationId, {
+        lastMessage: text,
+        lastMessageId: message._id.toString(),
+      });
+
+      // Emit message to all users in the room
+      const roomName = `chat-${conversationId}`;
+      io.to(roomName).emit("receive-message", {
+        _id: message._id,
+        conversationId: message.conversationId,
+        text: message.text,
+        sender: message.sender,
+        createdAt: message.createdAt,
+        read: false,
+      });
+
+      console.log("Message sent:", message._id);
+    } catch (error) {
+      console.error("Error sending message:", error);
+      socket.emit("error", { message: "Failed to send message" });
+    }
+  });
+
+  // Mark messages as read
+  socket.on("mark-as-read", async (data) => {
+    try {
+      const { userId, conversationId } = data;
+
+      // Update all unread messages in this conversation (not sent by this user)
+      await Messages.updateMany(
+        {
+          conversationId: conversationId,
+          sender: { $ne: userId },
+          read: { $ne: true },
+        },
+        { $set: { read: true } }
+      );
+
+      // Emit to all users in the room that messages are read
+      const roomName = `chat-${conversationId}`;
+      io.to(roomName).emit("messages-marked-read", {
+        conversationId: conversationId,
+        userId: userId,
+      });
+
+      console.log(`Messages marked as read in conversation ${conversationId}`);
+    } catch (error) {
+      console.error("Error marking messages as read:", error);
+      socket.emit("error", { message: "Failed to mark messages as read" });
+    }
+  });
+
+  // Handle typing indicator
+  socket.on("typing", (data) => {
+    const { conversationId, userId } = data;
+    const roomName = `chat-${conversationId}`;
+    socket.to(roomName).emit("user-typing", { userId, conversationId });
+  });
+
+  // Handle stop typing
+  socket.on("stop-typing", (data) => {
+    const { conversationId, userId } = data;
+    const roomName = `chat-${conversationId}`;
+    socket.to(roomName).emit("user-stopped-typing", { userId, conversationId });
+  });
+
+  // Handle disconnection
+  socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.id);
+  });
+});
+
 // it's for error handling
 app.use(ErrorHandler);
 

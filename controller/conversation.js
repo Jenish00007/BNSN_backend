@@ -12,15 +12,20 @@ router.post(
     try {
       const { groupTitle, userId, sellerId } = req.body;
 
-      const isConversationExist = await Conversation.findOne({ groupTitle });
+      // Check if a conversation already exists between these two users
+      const isConversationExist = await Conversation.findOne({
+        members: { $all: [userId, sellerId] }
+      });
 
       if (isConversationExist) {
+        // Return existing conversation
         const conversation = isConversationExist;
         res.status(201).json({
           success: true,
           conversation,
         });
       } else {
+        // Create new conversation
         const conversation = await Conversation.create({
           members: [userId, sellerId],
           groupTitle: groupTitle,
@@ -71,9 +76,58 @@ router.get(
         },
       }).sort({ updatedAt: -1, createdAt: -1 });
 
+      // Add other user information (seller) for each conversation
+      const Shop = require("../model/shop");
+      const User = require("../model/user");
+      
+      const conversationsWithOtherUser = await Promise.all(
+        conversations.map(async (conv) => {
+          const convObj = conv.toObject();
+          
+          // Find the other member (not the current user)
+          const otherMemberId = conv.members.find(
+            (member) => member.toString() !== req.params.id
+          );
+          
+          if (otherMemberId) {
+            try {
+              // Try to find in Shop collection first (seller)
+              let otherUser = await Shop.findById(otherMemberId).lean();
+              
+              if (otherUser) {
+                convObj.otherUser = {
+                  _id: otherUser._id,
+                  name: otherUser.name,
+                  email: otherUser.email,
+                  avatar: otherUser.avatar,
+                  phoneNumber: otherUser.phoneNumber,
+                  address: otherUser.address,
+                };
+              } else {
+                // If not found in Shop, try User collection
+                otherUser = await User.findById(otherMemberId).lean();
+                if (otherUser) {
+                  convObj.otherUser = {
+                    _id: otherUser._id,
+                    name: otherUser.name,
+                    email: otherUser.email,
+                    avatar: otherUser.avatar,
+                    phoneNumber: otherUser.phoneNumber,
+                  };
+                }
+              }
+            } catch (err) {
+              console.error("Error fetching other user:", err);
+            }
+          }
+          
+          return convObj;
+        })
+      );
+
       res.status(201).json({
         success: true,
-        conversations,
+        conversations: conversationsWithOtherUser,
       });
     } catch (error) {
       return next(new ErrorHandler(error), 500);
