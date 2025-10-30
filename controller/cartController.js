@@ -296,6 +296,44 @@ exports.getCart = catchAsyncErrors(async (req, res, next) => {
                 continue;
             }
 
+            // Populate shop/seller information if shopId or userId exists
+            let sellerInfo = null;
+            if (product.shopId) {
+                try {
+                    const Shop = require("../model/shop");
+                    const shop = await Shop.findById(product.shopId).lean();
+                    if (shop) {
+                        sellerInfo = {
+                            _id: shop._id,
+                            name: shop.name,
+                            email: shop.email,
+                            address: shop.address,
+                            phoneNumber: shop.phoneNumber,
+                            avatar: shop.avatar,
+                        };
+                    }
+                } catch (shopError) {
+                    console.error("Error fetching shop info:", shopError);
+                }
+            } else if (product.userId) {
+                // If product is uploaded by a regular user (customer), get user info
+                try {
+                    const User = require("../model/user");
+                    const user = await User.findById(product.userId).lean();
+                    if (user) {
+                        sellerInfo = {
+                            _id: user._id,
+                            name: user.name,
+                            email: user.email,
+                            phoneNumber: user.phoneNumber,
+                            avatar: user.avatar?.url || user.avatar || null,
+                        };
+                    }
+                } catch (userError) {
+                    console.error("Error fetching user info:", userError);
+                }
+            }
+
             // --- Normalize product fields ---
             const normalizedProduct = {
                 _id: product._id,
@@ -313,7 +351,8 @@ exports.getCart = catchAsyncErrors(async (req, res, next) => {
                     : [],
                 stock: product.stock || 0,
                 shopId: product.shopId || null,
-                shop: product.shop || null,
+                userId: product.userId || null,
+                shop: sellerInfo || product.shop || null,
             };
 
             // --- Price Calculations ---
