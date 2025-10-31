@@ -10,12 +10,20 @@ router.post(
   "/create-new-conversation",
   catchAsyncErrors(async (req, res, next) => {
     try {
-      const { groupTitle, userId, sellerId } = req.body;
+      const { groupTitle, userId, sellerId, productId } = req.body;
 
-      // Check if a conversation already exists between these two users
-      const isConversationExist = await Conversation.findOne({
+      // Build query to check for existing conversation
+      const query = {
         members: { $all: [userId, sellerId] }
-      });
+      };
+      
+      // If productId is provided, also check for it to ensure product-specific conversations
+      if (productId) {
+        query.productId = productId;
+      }
+
+      // Check if a conversation already exists between these two users (and for this product if specified)
+      const isConversationExist = await Conversation.findOne(query);
 
       if (isConversationExist) {
         // Return existing conversation
@@ -29,6 +37,7 @@ router.post(
         const conversation = await Conversation.create({
           members: [userId, sellerId],
           groupTitle: groupTitle,
+          productId: productId || null,
         });
 
         res.status(201).json({
@@ -125,9 +134,31 @@ router.get(
         })
       );
 
+      // Group conversations to show only the most recent for each seller
+      // This prevents showing multiple conversations with the same seller for different products
+      const groupedConversations = new Map();
+      conversationsWithOtherUser.forEach((conv) => {
+        const otherUserId = conv.otherUser?._id?.toString();
+        
+        if (otherUserId) {
+          // Group by seller only (ignore productId to show just one conversation per seller)
+          const key = otherUserId;
+          const existing = groupedConversations.get(key);
+          
+          if (!existing || new Date(conv.updatedAt) > new Date(existing.updatedAt)) {
+            groupedConversations.set(key, conv);
+          }
+        } else {
+          // If no otherUser, add as-is with unique key
+          groupedConversations.set(conv._id.toString(), conv);
+        }
+      });
+
+      const finalConversations = Array.from(groupedConversations.values());
+
       res.status(201).json({
         success: true,
-        conversations: conversationsWithOtherUser,
+        conversations: finalConversations,
       });
     } catch (error) {
       return next(new ErrorHandler(error), 500);
