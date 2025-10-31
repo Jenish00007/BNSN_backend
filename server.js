@@ -11,6 +11,9 @@ const cors = require("cors");
 const path = require("path");
 const Messages = require("./model/messages");
 const Conversation = require("./model/conversation");
+const Shop = require("./model/shop");
+const User = require("./model/user");
+const { sendPushNotification } = require("./utils/pushNotification");
 
 // config
 if (process.env.NODE_ENV !== "PRODUCTION") {
@@ -202,6 +205,74 @@ io.on("connection", (socket) => {
       });
 
       console.log("Message sent:", message._id);
+
+      // Send push notification to the other user if they're not in the room
+      try {
+        const conversation = await Conversation.findById(conversationId);
+        if (conversation && conversation.members) {
+          // Find the other member (not the sender)
+          const otherMemberId = conversation.members.find(
+            (member) => member.toString() !== sender.toString()
+          );
+
+          if (otherMemberId) {
+            // Get sender's name for notification
+            let senderName = "Someone";
+            const senderUser = await User.findById(sender).lean();
+            const senderShop = await Shop.findById(sender).lean();
+
+            if (senderUser) {
+              senderName = senderUser.name;
+            } else if (senderShop) {
+              senderName = senderShop.name;
+            }
+
+            // Try to find other member as Shop first, then User
+            let receiverPushToken = null;
+            const otherShop = await Shop.findById(otherMemberId).lean();
+            const otherUser = await User.findById(otherMemberId).lean();
+
+            if (otherShop && otherShop.expoPushToken) {
+              receiverPushToken = otherShop.expoPushToken;
+            } else if (otherUser && otherUser.pushToken) {
+              receiverPushToken = otherUser.pushToken;
+            }
+
+            // Check if the other user is connected to the socket room
+            const socketsInRoom = await io.in(roomName).fetchSockets();
+            const otherUserIsOnline = socketsInRoom.some(
+              (s) => s.auth && s.auth.userId === otherMemberId.toString()
+            );
+
+            // Only send push notification if the other user is not online
+            if (receiverPushToken && !otherUserIsOnline) {
+              const notificationTitle = `New message from ${senderName}`;
+              const notificationBody = text.length > 50 ? text.substring(0, 50) + '...' : text;
+
+              const result = await sendPushNotification(
+                receiverPushToken,
+                notificationTitle,
+                notificationBody,
+                {
+                  type: "NEW_MESSAGE",
+                  conversationId: conversationId,
+                  sender: sender,
+                  message: text,
+                  senderName: senderName,
+                }
+              );
+
+              if (result.success) {
+                console.log(`Push notification sent to ${otherMemberId}`);
+              } else {
+                console.error(`Failed to send push notification: ${result.error}`);
+              }
+            }
+          }
+        }
+      } catch (notifError) {
+        console.error("Error sending push notification:", notifError);
+      }
     } catch (error) {
       console.error("Error sending message:", error);
       socket.emit("error", { message: "Failed to send message" });
