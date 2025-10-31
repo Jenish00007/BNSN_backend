@@ -8,6 +8,10 @@ const conversationSchema = new mongoose.Schema(
     members: {
       type: Array,
     },
+    productId: {
+      type: String,
+      default: null,
+    },
     lastMessage: {
       type: String,
     },
