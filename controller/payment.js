@@ -581,7 +581,7 @@ router.post(
         // Find the order with this payment link ID
         const order = await Order.findOne({
           'paymentInfo.qr_code_id': paymentLinkId
-        }).populate('deliveryMan', 'name expoPushToken');
+        }).populate('deliveryMan', 'name pushToken');
 
         if (order) {
           // Update order payment status
@@ -598,11 +598,11 @@ router.post(
           console.log('Order payment status updated:', order._id);
 
           // Send push notification to delivery man if available
-          if (order.deliveryMan && order.deliveryMan.expoPushToken) {
+          if (order.deliveryMan && order.deliveryMan.pushToken) {
             try {
-              const { sendPushNotification } = require('../utils/pushNotification');
-              await sendPushNotification(
-                order.deliveryMan.expoPushToken,
+              const { sendFCMNotification } = require('../utils/fcmService');
+              await sendFCMNotification(
+                order.deliveryMan.pushToken,
                 'Payment Received!',
                 `Payment of ₹${paymentAmount / 100} received for order #${order._id.toString().slice(-8)}`,
                 { 
