@@ -99,6 +99,10 @@ const shopSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+  pushToken: {
+    type: String,
+    default: null,
+  },
   expoPushToken: {
     type: String,
     default: null,

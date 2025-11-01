@@ -317,7 +317,7 @@ exports.updateExpoPushToken = catchAsyncErrors(async (req, res, next) => {
   if (!shop) {
     return next(new ErrorHandler('Shop not found', 404));
   }
-  shop.expoPushToken = token;
+  shop.pushToken = token;
   await shop.save();
-  res.status(200).json({ success: true, message: 'Expo push token updated', token });
+  res.status(200).json({ success: true, message: 'FCM push token updated', token });
 }); 
