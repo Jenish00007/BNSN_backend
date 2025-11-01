@@ -90,7 +90,7 @@ router.post("/create-user", upload.single("file"), async (req, res, next) => {
 
 // update user push token
 router.put(
-  "/expo-push-token",
+  "/push-token",
   isAuthenticated,
   catchAsyncErrors(async (req, res, next) => {
     try {
@@ -110,11 +110,11 @@ router.put(
       user.pushToken = token;
       await user.save();
 
-      console.log(`Push token updated for user ${user.email}: ${token}`);
+      console.log(`FCM push token updated for user ${user.email}: ${token}`);
 
       res.status(200).json({
         success: true,
-        message: "Push token updated successfully",
+        message: "FCM push token updated successfully",
         user: {
           id: user._id,
           name: user.name,

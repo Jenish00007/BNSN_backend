@@ -57,7 +57,7 @@ const deliverymanSchema = new mongoose.Schema({
         type: Boolean,
         default: true,
     },
-    expoPushToken: {
+    pushToken: {
         type: String,
         default: null,
     },

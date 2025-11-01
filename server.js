@@ -13,7 +13,7 @@ const Messages = require("./model/messages");
 const Conversation = require("./model/conversation");
 const Shop = require("./model/shop");
 const User = require("./model/user");
-const { sendPushNotification } = require("./utils/pushNotification");
+const { sendFCMNotification } = require("./utils/fcmService");
 
 // config
 if (process.env.NODE_ENV !== "PRODUCTION") {
@@ -204,18 +204,23 @@ io.on("connection", (socket) => {
         read: false,
       });
 
-      console.log("Message sent:", message._id);
+      console.log("📬 Message sent:", message._id);
 
-      // Send push notification to the other user if they're not in the room
+      // Send push notification to the other user
       try {
         const conversation = await Conversation.findById(conversationId);
         if (conversation && conversation.members) {
+          console.log(`[NOTIFICATION] Conversation members:`, conversation.members);
+          console.log(`[NOTIFICATION] Sender:`, sender);
+          
           // Find the other member (not the sender)
           const otherMemberId = conversation.members.find(
             (member) => member.toString() !== sender.toString()
           );
 
-          if (otherMemberId) {
+          console.log(`[NOTIFICATION] Other member ID:`, otherMemberId);
+
+          if (otherMemberId && otherMemberId.toString() !== sender.toString()) {
             // Get sender's name for notification
             let senderName = "Someone";
             const senderUser = await User.findById(sender).lean();
@@ -223,33 +228,57 @@ io.on("connection", (socket) => {
 
             if (senderUser) {
               senderName = senderUser.name;
+              console.log(`[NOTIFICATION] Sender is User: ${senderName}`);
             } else if (senderShop) {
               senderName = senderShop.name;
+              console.log(`[NOTIFICATION] Sender is Shop: ${senderName}`);
             }
 
             // Try to find other member as Shop first, then User
             let receiverPushToken = null;
+            let receiverType = null;
+            
             const otherShop = await Shop.findById(otherMemberId).lean();
             const otherUser = await User.findById(otherMemberId).lean();
 
-            if (otherShop && otherShop.expoPushToken) {
-              receiverPushToken = otherShop.expoPushToken;
-            } else if (otherUser && otherUser.pushToken) {
+            console.log(`[NOTIFICATION] Looking up receiver - Shop: ${otherShop ? 'Found' : 'Not found'}, User: ${otherUser ? 'Found' : 'Not found'}`);
+
+            if (otherShop) {
+              // Check for both pushToken and expoPushToken (backward compatibility)
+              receiverPushToken = otherShop.pushToken || otherShop.expoPushToken;
+              if (receiverPushToken) {
+                receiverType = 'Shop';
+                const tokenType = otherShop.pushToken ? 'pushToken' : 'expoPushToken';
+                console.log(`[NOTIFICATION] ✅ Found Shop ${tokenType} for ${otherMemberId} (${otherShop.name}): ${receiverPushToken.substring(0, 20)}...`);
+              }
+            }
+            
+            if (!receiverPushToken && otherUser) {
               receiverPushToken = otherUser.pushToken;
+              if (receiverPushToken) {
+                receiverType = 'User';
+                console.log(`[NOTIFICATION] ✅ Found User push token for ${otherMemberId} (${otherUser.name}): ${receiverPushToken.substring(0, 20)}...`);
+              }
+            }
+            
+            if (!receiverPushToken) {
+              if (otherShop && !otherShop.pushToken && !otherShop.expoPushToken) {
+                console.log(`[NOTIFICATION] ⚠️ Shop ${otherMemberId} (${otherShop.name}) found but has no pushToken or expoPushToken`);
+              } else if (otherUser && !otherUser.pushToken) {
+                console.log(`[NOTIFICATION] ⚠️ User ${otherMemberId} (${otherUser.name}) found but has no pushToken`);
+              } else {
+                console.log(`[NOTIFICATION] ❌ No Shop or User found for ${otherMemberId}`);
+              }
             }
 
-            // Check if the other user is connected to the socket room
-            const socketsInRoom = await io.in(roomName).fetchSockets();
-            const otherUserIsOnline = socketsInRoom.some(
-              (s) => s.auth && s.auth.userId === otherMemberId.toString()
-            );
-
-            // Only send push notification if the other user is not online
-            if (receiverPushToken && !otherUserIsOnline) {
+            // Always send notification for every message (optional: can add online check later)
+            if (receiverPushToken) {
               const notificationTitle = `New message from ${senderName}`;
               const notificationBody = text.length > 50 ? text.substring(0, 50) + '...' : text;
 
-              const result = await sendPushNotification(
+              console.log(`[NOTIFICATION] 📤 Sending FCM notification to ${receiverType} ${otherMemberId}: "${notificationTitle}" - "${notificationBody}"`);
+
+              const result = await sendFCMNotification(
                 receiverPushToken,
                 notificationTitle,
                 notificationBody,
@@ -263,15 +292,18 @@ io.on("connection", (socket) => {
               );
 
               if (result.success) {
-                console.log(`Push notification sent to ${otherMemberId}`);
+                console.log(`[NOTIFICATION] ✅ Push notification sent successfully to ${receiverType} ${otherMemberId} (${senderName} → ${receiverType === 'Shop' ? otherShop.name : otherUser.name})`);
               } else {
-                console.error(`Failed to send push notification: ${result.error}`);
+                console.error(`[NOTIFICATION] ❌ Failed to send push notification to ${otherMemberId}: ${result.error}`);
               }
+            } else {
+              console.log(`[NOTIFICATION] ⏭️ Skipping notification - no pushToken available for ${otherMemberId}`);
             }
           }
         }
       } catch (notifError) {
-        console.error("Error sending push notification:", notifError);
+        console.error("[NOTIFICATION] ❌ Error in push notification handler:", notifError);
+        console.error("[NOTIFICATION] Error stack:", notifError.stack);
       }
     } catch (error) {
       console.error("Error sending message:", error);

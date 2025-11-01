@@ -20,8 +20,8 @@ const sendFCMNotificationToDeliverymen = async (order) => {
     const availableDeliverymen = await DeliveryMan.find({
       isAvailable: true,
       isApproved: true,
-      expoPushToken: { $exists: true, $ne: null, $ne: '' }
-    }).select('expoPushToken name _id');
+      pushToken: { $exists: true, $ne: null, $ne: '' }
+    }).select('pushToken name _id');
 
     if (availableDeliverymen.length === 0) {
       console.log('No available deliverymen with FCM tokens found');
@@ -35,7 +35,7 @@ const sendFCMNotificationToDeliverymen = async (order) => {
     console.log('Available deliverymen IDs:', availableDeliverymen.map(dm => ({
       id: dm._id,
       name: dm.name,
-      hasToken: !!dm.expoPushToken
+      hasToken: !!dm.pushToken
     })));
 
     // Use the new FCM service
@@ -55,7 +55,7 @@ const sendFCMNotificationToDeliverymen = async (order) => {
 const sendFCMNotificationToSeller = async (order) => {
   try {
     // Get the shop with FCM token
-    const shop = await Shop.findById(order.shop).select('name expoPushToken _id');
+    const shop = await Shop.findById(order.shop).select('name pushToken _id');
 
     if (!shop) {
       console.log('Shop not found for order:', order._id);
@@ -65,7 +65,7 @@ const sendFCMNotificationToSeller = async (order) => {
       };
     }
 
-    if (!shop.expoPushToken) {
+    if (!shop.pushToken) {
       console.log('Shop does not have an FCM token:', shop.name);
       return {
         success: false,
@@ -76,7 +76,7 @@ const sendFCMNotificationToSeller = async (order) => {
     console.log('Sending notification to seller:', {
       shopId: shop._id,
       shopName: shop.name,
-      hasToken: !!shop.expoPushToken
+      hasToken: !!shop.pushToken
     });
 
     // Use the new FCM service

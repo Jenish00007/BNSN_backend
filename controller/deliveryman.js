@@ -649,12 +649,12 @@ exports.updateExpoPushToken = catchAsyncErrors(async (req, res, next) => {
         return next(new ErrorHandler('Delivery man not found', 404));
     }
     
-    deliveryMan.expoPushToken = token;
+    deliveryMan.pushToken = token;
     await deliveryMan.save();
     
     res.status(200).json({ 
         success: true, 
-        message: 'Expo push token updated', 
+        message: 'FCM push token updated', 
         token 
     });
 }); 

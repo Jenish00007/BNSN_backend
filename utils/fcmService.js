@@ -250,7 +250,7 @@ const sendFCMNotificationToMultiple = async (
 
 /**
  * Send HIGH-PRIORITY FCM notification to deliverymen for new orders (AGGRESSIVE ALERT)
- * @param {Array} deliverymen - Array of deliveryman objects with expoPushToken
+ * @param {Array} deliverymen - Array of deliveryman objects with pushToken
  * @param {object} order - Order object with details
  * @returns {Promise<object>} - Result object with success status and details
  */
@@ -266,9 +266,9 @@ const sendFCMNotificationToDeliverymen = async (deliverymen, order) => {
     // Filter deliverymen with valid FCM tokens
     const validDeliverymen = deliverymen.filter(
       (dm) =>
-        dm.expoPushToken &&
-        dm.expoPushToken.trim() !== "" &&
-        dm.expoPushToken !== null
+        dm.pushToken &&
+        dm.pushToken.trim() !== "" &&
+        dm.pushToken !== null
     );
 
     if (validDeliverymen.length === 0) {
@@ -330,7 +330,7 @@ const sendFCMNotificationToDeliverymen = async (deliverymen, order) => {
       );
       try {
         const result = await sendFCMNotification(
-          deliveryman.expoPushToken,
+          deliveryman.pushToken,
           title,
           body,
           data
@@ -397,13 +397,13 @@ const sendFCMNotificationToDeliverymen = async (deliverymen, order) => {
 
 /**
  * Send HIGH-PRIORITY FCM notification to seller for new orders
- * @param {object} shop - Shop object with expoPushToken
+ * @param {object} shop - Shop object with pushToken
  * @param {object} order - Order object with details
  * @returns {Promise<object>} - Result object with success status and details
  */
 const sendFCMNotificationToSeller = async (shop, order) => {
   try {
-    if (!shop || !shop.expoPushToken) {
+    if (!shop || !shop.pushToken) {
       return {
         success: false,
         error: "Shop does not have a valid FCM token",
@@ -434,7 +434,7 @@ const sendFCMNotificationToSeller = async (shop, order) => {
 
     // HIGH-PRIORITY MESSAGE FOR SELLER
     const message = {
-      token: shop.expoPushToken,
+      token: shop.pushToken,
       notification: {
         title,
         body,
@@ -499,7 +499,7 @@ const sendFCMNotificationToSeller = async (shop, order) => {
     return {
       success: true,
       messageId: response,
-      fcmToken: shop.expoPushToken,
+      fcmToken: shop.pushToken,
       firebaseInstance: adminSeller.name || "default",
     };
   } catch (error) {
@@ -519,7 +519,7 @@ const sendFCMNotificationToSeller = async (shop, order) => {
     return {
       success: false,
       error: errorMessage,
-      fcmToken: shop.expoPushToken,
+      fcmToken: shop.pushToken,
     };
   }
 };
