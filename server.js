@@ -33,14 +33,11 @@ const server = http.listen(process.env.PORT, () => {
 // initialize socket.io
 const io = new Server(server, {
   cors: {
-    origin: [
-      "https://bnsn.in",
-      "http://localhost:3000",
-   
-    ],
+    origin: true, // Allow all origins for mobile apps
     credentials: true,
     methods: ["GET", "POST"],
   },
+  allowEIO3: true, // Allow Socket.io v3 clients
 });
 
 // middlewares
@@ -50,10 +47,7 @@ app.use(cookieParser());
 
 app.use(
   cors({
-    origin: [
-      "https://bnsn.in",
-      "http://localhost:3000",
-    ],
+    origin: true, // Allow all origins for mobile apps
     credentials: true,
   })
 );
@@ -207,9 +201,12 @@ io.on("connection", (socket) => {
       try {
         const conversation = await Conversation.findById(conversationId);
         if (conversation && conversation.members) {
-          console.log(`[NOTIFICATION] Conversation members:`, conversation.members);
+          console.log(
+            `[NOTIFICATION] Conversation members:`,
+            conversation.members
+          );
           console.log(`[NOTIFICATION] Sender:`, sender);
-          
+
           // Find the other member (not the sender)
           const otherMemberId = conversation.members.find(
             (member) => member.toString() !== sender.toString()
@@ -234,46 +231,74 @@ io.on("connection", (socket) => {
             // Try to find other member as Shop first, then User
             let receiverPushToken = null;
             let receiverType = null;
-            
+
             const otherShop = await Shop.findById(otherMemberId).lean();
             const otherUser = await User.findById(otherMemberId).lean();
 
-            console.log(`[NOTIFICATION] Looking up receiver - Shop: ${otherShop ? 'Found' : 'Not found'}, User: ${otherUser ? 'Found' : 'Not found'}`);
+            console.log(
+              `[NOTIFICATION] Looking up receiver - Shop: ${
+                otherShop ? "Found" : "Not found"
+              }, User: ${otherUser ? "Found" : "Not found"}`
+            );
 
             if (otherShop) {
               // Check for both pushToken and expoPushToken (backward compatibility)
-              receiverPushToken = otherShop.pushToken || otherShop.expoPushToken;
+              receiverPushToken =
+                otherShop.pushToken || otherShop.expoPushToken;
               if (receiverPushToken) {
-                receiverType = 'Shop';
-                const tokenType = otherShop.pushToken ? 'pushToken' : 'expoPushToken';
-                console.log(`[NOTIFICATION] ✅ Found Shop ${tokenType} for ${otherMemberId} (${otherShop.name}): ${receiverPushToken.substring(0, 20)}...`);
+                receiverType = "Shop";
+                const tokenType = otherShop.pushToken
+                  ? "pushToken"
+                  : "expoPushToken";
+                console.log(
+                  `[NOTIFICATION] ✅ Found Shop ${tokenType} for ${otherMemberId} (${
+                    otherShop.name
+                  }): ${receiverPushToken.substring(0, 20)}...`
+                );
               }
             }
-            
+
             if (!receiverPushToken && otherUser) {
               receiverPushToken = otherUser.pushToken;
               if (receiverPushToken) {
-                receiverType = 'User';
-                console.log(`[NOTIFICATION] ✅ Found User push token for ${otherMemberId} (${otherUser.name}): ${receiverPushToken.substring(0, 20)}...`);
+                receiverType = "User";
+                console.log(
+                  `[NOTIFICATION] ✅ Found User push token for ${otherMemberId} (${
+                    otherUser.name
+                  }): ${receiverPushToken.substring(0, 20)}...`
+                );
               }
             }
-            
+
             if (!receiverPushToken) {
-              if (otherShop && !otherShop.pushToken && !otherShop.expoPushToken) {
-                console.log(`[NOTIFICATION] ⚠️ Shop ${otherMemberId} (${otherShop.name}) found but has no pushToken or expoPushToken`);
+              if (
+                otherShop &&
+                !otherShop.pushToken &&
+                !otherShop.expoPushToken
+              ) {
+                console.log(
+                  `[NOTIFICATION] ⚠️ Shop ${otherMemberId} (${otherShop.name}) found but has no pushToken or expoPushToken`
+                );
               } else if (otherUser && !otherUser.pushToken) {
-                console.log(`[NOTIFICATION] ⚠️ User ${otherMemberId} (${otherUser.name}) found but has no pushToken`);
+                console.log(
+                  `[NOTIFICATION] ⚠️ User ${otherMemberId} (${otherUser.name}) found but has no pushToken`
+                );
               } else {
-                console.log(`[NOTIFICATION] ❌ No Shop or User found for ${otherMemberId}`);
+                console.log(
+                  `[NOTIFICATION] ❌ No Shop or User found for ${otherMemberId}`
+                );
               }
             }
 
             // Always send notification for every message (optional: can add online check later)
             if (receiverPushToken) {
               const notificationTitle = `New message from ${senderName}`;
-              const notificationBody = text.length > 50 ? text.substring(0, 50) + '...' : text;
+              const notificationBody =
+                text.length > 50 ? text.substring(0, 50) + "..." : text;
 
-              console.log(`[NOTIFICATION] 📤 Sending FCM notification to ${receiverType} ${otherMemberId}: "${notificationTitle}" - "${notificationBody}"`);
+              console.log(
+                `[NOTIFICATION] 📤 Sending FCM notification to ${receiverType} ${otherMemberId}: "${notificationTitle}" - "${notificationBody}"`
+              );
 
               const result = await sendFCMNotification(
                 receiverPushToken,
@@ -289,17 +314,28 @@ io.on("connection", (socket) => {
               );
 
               if (result.success) {
-                console.log(`[NOTIFICATION] ✅ Push notification sent successfully to ${receiverType} ${otherMemberId} (${senderName} → ${receiverType === 'Shop' ? otherShop.name : otherUser.name})`);
+                console.log(
+                  `[NOTIFICATION] ✅ Push notification sent successfully to ${receiverType} ${otherMemberId} (${senderName} → ${
+                    receiverType === "Shop" ? otherShop.name : otherUser.name
+                  })`
+                );
               } else {
-                console.error(`[NOTIFICATION] ❌ Failed to send push notification to ${otherMemberId}: ${result.error}`);
+                console.error(
+                  `[NOTIFICATION] ❌ Failed to send push notification to ${otherMemberId}: ${result.error}`
+                );
               }
             } else {
-              console.log(`[NOTIFICATION] ⏭️ Skipping notification - no pushToken available for ${otherMemberId}`);
+              console.log(
+                `[NOTIFICATION] ⏭️ Skipping notification - no pushToken available for ${otherMemberId}`
+              );
             }
           }
         }
       } catch (notifError) {
-        console.error("[NOTIFICATION] ❌ Error in push notification handler:", notifError);
+        console.error(
+          "[NOTIFICATION] ❌ Error in push notification handler:",
+          notifError
+        );
         console.error("[NOTIFICATION] Error stack:", notifError.stack);
       }
     } catch (error) {
