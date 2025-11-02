@@ -34,10 +34,9 @@ const server = http.listen(process.env.PORT, () => {
 const io = new Server(server, {
   cors: {
     origin: [
+      "https://bnsn.in",
       "http://localhost:3000",
-      "http://localhost:3001",
-      "http://192.168.31.121:19006",
-      "exp://192.168.31.121:8081",
+   
     ],
     credentials: true,
     methods: ["GET", "POST"],
@@ -52,10 +51,8 @@ app.use(cookieParser());
 app.use(
   cors({
     origin: [
+      "https://bnsn.in",
       "http://localhost:3000",
-      "http://localhost:3001",
-      "http://192.168.31.121:19006",
-      "exp://192.168.31.121:8081",
     ],
     credentials: true,
   })
