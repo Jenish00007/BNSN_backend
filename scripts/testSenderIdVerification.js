@@ -52,7 +52,7 @@ try {
     console.log(`   Total clients in config: ${googleServices.client.length}`);
 
     // Check package name
-    const packageName = "com.qauds.qauds";
+    const packageName = "com.bnsn.bnsn";
     console.log(`\n🔍 Looking for package: ${packageName}`);
     const clientConfig = googleServices.client.find(
       (c) => c.client_info && c.client_info.android_client_info && c.client_info.android_client_info.package_name === packageName
