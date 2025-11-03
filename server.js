@@ -13,6 +13,7 @@ const Messages = require("./model/messages");
 const Conversation = require("./model/conversation");
 const Shop = require("./model/shop");
 const User = require("./model/user");
+const Product = require("./model/product");
 const { sendFCMNotification } = require("./utils/fcmService");
 
 // config
@@ -167,9 +168,15 @@ io.on("connection", (socket) => {
   // Send message
   socket.on("send-message", async (data) => {
     try {
+      console.log("=".repeat(80));
+      console.log("🔵 [SEND-MESSAGE] Event received");
+      console.log("=".repeat(80));
+      
       const { conversationId, sender, text } = data;
+      console.log(`[SEND-MESSAGE] Data:`, { conversationId, sender, text: text.substring(0, 50) });
 
       // Save message to database
+      console.log(`[SEND-MESSAGE] Saving message to database...`);
       const message = new Messages({
         conversationId: conversationId,
         text: text,
@@ -177,14 +184,17 @@ io.on("connection", (socket) => {
       });
 
       await message.save();
+      console.log(`[SEND-MESSAGE] ✅ Message saved: ${message._id}`);
 
       // Update conversation last message
+      console.log(`[SEND-MESSAGE] Updating conversation last message...`);
       await Conversation.findByIdAndUpdate(conversationId, {
         lastMessage: text,
         lastMessageId: message._id.toString(),
       });
 
       // Emit message to all users in the room
+      console.log(`[SEND-MESSAGE] Emitting receive-message event...`);
       const roomName = `chat-${conversationId}`;
       io.to(roomName).emit("receive-message", {
         _id: message._id,
@@ -198,9 +208,13 @@ io.on("connection", (socket) => {
       console.log("📬 Message sent:", message._id);
 
       // Send push notification to the other user
+      console.log(`[NOTIFICATION] Starting notification process...`);
       try {
+        console.log(`[NOTIFICATION] Fetching conversation: ${conversationId}`);
         const conversation = await Conversation.findById(conversationId);
+        console.log(`[NOTIFICATION] Conversation found:`, conversation ? 'Yes' : 'No');
         if (conversation && conversation.members) {
+          console.log(`[NOTIFICATION] Conversation has members: ${conversation.members.length}`);
           console.log(
             `[NOTIFICATION] Conversation members:`,
             conversation.members
@@ -214,8 +228,15 @@ io.on("connection", (socket) => {
 
           console.log(`[NOTIFICATION] Other member ID:`, otherMemberId);
 
+          if (!otherMemberId) {
+            console.log(`[NOTIFICATION] ⚠️ No other member found in conversation`);
+          } else if (otherMemberId.toString() === sender.toString()) {
+            console.log(`[NOTIFICATION] ⚠️ Other member is same as sender (self-conversation?)`);
+          }
+
           if (otherMemberId && otherMemberId.toString() !== sender.toString()) {
             // Get sender's name for notification
+            console.log(`[NOTIFICATION] Looking up sender: ${sender}`);
             let senderName = "Someone";
             const senderUser = await User.findById(sender).lean();
             const senderShop = await Shop.findById(sender).lean();
@@ -226,6 +247,8 @@ io.on("connection", (socket) => {
             } else if (senderShop) {
               senderName = senderShop.name;
               console.log(`[NOTIFICATION] Sender is Shop: ${senderName}`);
+            } else {
+              console.log(`[NOTIFICATION] ⚠️ Sender not found as User or Shop`);
             }
 
             // Try to find other member as Shop first, then User
@@ -329,17 +352,133 @@ io.on("connection", (socket) => {
                 `[NOTIFICATION] ⏭️ Skipping notification - no pushToken available for ${otherMemberId}`
               );
             }
+
+            // Send notification to product owner if conversation is about a product
+            if (conversation.productId) {
+              try {
+                console.log(`[PRODUCT NOTIFICATION] Conversation is about product: ${conversation.productId}`);
+                
+                const product = await Product.findById(conversation.productId).lean();
+                if (product) {
+                  let productOwnerId = null;
+                  let productOwnerPushToken = null;
+                  let productOwnerType = null;
+                  let productOwnerName = null;
+
+                  // Check if product has shopId (Shop-created product)
+                  if (product.shopId) {
+                    const productOwnerShop = await Shop.findById(product.shopId).lean();
+                    if (productOwnerShop) {
+                      productOwnerId = product.shopId;
+                      productOwnerPushToken = productOwnerShop.pushToken || productOwnerShop.expoPushToken;
+                      productOwnerType = "Shop";
+                      productOwnerName = productOwnerShop.name;
+                      console.log(`[PRODUCT NOTIFICATION] Product owned by Shop: ${productOwnerName} (${productOwnerId})`);
+                    }
+                  }
+                  
+                  // Check if product has userId (User-created product)
+                  if (!productOwnerPushToken && product.userId) {
+                    const productOwnerUser = await User.findById(product.userId).lean();
+                    if (productOwnerUser) {
+                      productOwnerId = product.userId;
+                      productOwnerPushToken = productOwnerUser.pushToken;
+                      productOwnerType = "User";
+                      productOwnerName = productOwnerUser.name;
+                      console.log(`[PRODUCT NOTIFICATION] Product owned by User: ${productOwnerName} (${productOwnerId})`);
+                    }
+                  }
+
+                  // Send notification to product owner if:
+                  // 1. Product owner found with push token
+                  // 2. Product owner is not the sender
+                  // 3. Product owner is not already the other member (to avoid duplicate notifications)
+                  if (productOwnerPushToken && 
+                      productOwnerId.toString() !== sender.toString() && 
+                      productOwnerId.toString() !== otherMemberId.toString()) {
+                    
+                    const productNotificationTitle = `New message about ${product.name}`;
+                    const productNotificationBody = `${senderName}: ${text.length > 50 ? text.substring(0, 50) + "..." : text}`;
+
+                    console.log(
+                      `[PRODUCT NOTIFICATION] 📤 Sending FCM notification to product owner ${productOwnerType} ${productOwnerId}: "${productNotificationTitle}" - "${productNotificationBody}"`
+                    );
+
+                    const productResult = await sendFCMNotification(
+                      productOwnerPushToken,
+                      productNotificationTitle,
+                      productNotificationBody,
+                      {
+                        type: "NEW_MESSAGE",
+                        conversationId: conversationId,
+                        sender: sender,
+                        message: text,
+                        senderName: senderName,
+                        productId: conversation.productId,
+                        productName: product.name,
+                      }
+                    );
+
+                    if (productResult.success) {
+                      console.log(
+                        `[PRODUCT NOTIFICATION] ✅ Push notification sent successfully to product owner ${productOwnerType} ${productOwnerId} (${productOwnerName})`
+                      );
+                    } else {
+                      console.error(
+                        `[PRODUCT NOTIFICATION] ❌ Failed to send push notification to product owner ${productOwnerId}: ${productResult.error}`
+                      );
+                    }
+                  } else {
+                    if (productOwnerId) {
+                      if (!productOwnerPushToken) {
+                        console.log(
+                          `[PRODUCT NOTIFICATION] ⏭️ Skipping - no pushToken for product owner ${productOwnerId}`
+                        );
+                      } else if (productOwnerId.toString() === sender.toString()) {
+                        console.log(
+                          `[PRODUCT NOTIFICATION] ⏭️ Skipping - product owner is the sender`
+                        );
+                      } else if (productOwnerId.toString() === otherMemberId.toString()) {
+                        console.log(
+                          `[PRODUCT NOTIFICATION] ⏭️ Skipping - product owner already notified as other member`
+                        );
+                      }
+                    } else {
+                      console.log(
+                        `[PRODUCT NOTIFICATION] ⏭️ Skipping - no product owner found`
+                      );
+                    }
+                  }
+                } else {
+                  console.log(`[PRODUCT NOTIFICATION] ⚠️ Product not found: ${conversation.productId}`);
+                }
+              } catch (productNotifError) {
+                console.error(
+                  "[PRODUCT NOTIFICATION] ❌ Error in product notification handler:",
+                  productNotifError
+                );
+              }
+            }
           }
+        } else {
+          console.log(`[NOTIFICATION] ⚠️ Conversation not found or has no members`);
         }
       } catch (notifError) {
-        console.error(
-          "[NOTIFICATION] ❌ Error in push notification handler:",
-          notifError
-        );
+        console.error("=".repeat(80));
+        console.error("[NOTIFICATION] ❌ Error in push notification handler:", notifError);
+        console.error("[NOTIFICATION] Error message:", notifError.message);
         console.error("[NOTIFICATION] Error stack:", notifError.stack);
+        console.error("=".repeat(80));
       }
+      console.log("=".repeat(80));
+      console.log("✅ [SEND-MESSAGE] Process complete");
+      console.log("=".repeat(80));
     } catch (error) {
-      console.error("Error sending message:", error);
+      console.error("=".repeat(80));
+      console.error("❌ [SEND-MESSAGE] Error:", error);
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
+      console.error("=".repeat(80));
       socket.emit("error", { message: "Failed to send message" });
     }
   });
