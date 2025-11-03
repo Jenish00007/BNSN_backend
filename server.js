@@ -29,7 +29,7 @@ connectDatabase();
 // create server
 const server = http.listen(process.env.PORT, () => {
   console.log(`Server is running on http://localhost:${process.env.PORT}`);
-});
+})
 
 // initialize socket.io
 const io = new Server(server, {
