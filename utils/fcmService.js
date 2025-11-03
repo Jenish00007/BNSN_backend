@@ -86,8 +86,12 @@ const sendFCMNotification = async (fcmToken, title, body, data = {}) => {
       },
 
       // DATA PAYLOAD - Custom data for app handling
+      // Convert all values to strings (required by FCM)
       data: {
-        ...data,
+        ...Object.entries(data).reduce((acc, [key, value]) => {
+          acc[key] = String(value);
+          return acc;
+        }, {}),
         timestamp: new Date().toISOString(),
         priority: "high",
         wake_device: "true",
@@ -205,7 +209,10 @@ const sendFCMNotificationToMultiple = async (
         },
       },
       data: {
-        ...data,
+        ...Object.entries(data).reduce((acc, [key, value]) => {
+          acc[key] = String(value);
+          return acc;
+        }, {}),
         timestamp: new Date().toISOString(),
         priority: "high",
         wake_device: "true",
@@ -479,7 +486,10 @@ const sendFCMNotificationToSeller = async (shop, order) => {
         },
       },
       data: {
-        ...data,
+        ...Object.entries(data).reduce((acc, [key, value]) => {
+          acc[key] = String(value);
+          return acc;
+        }, {}),
         timestamp: new Date().toISOString(),
         priority: "high",
         wake_device: "true",
