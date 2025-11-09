@@ -142,6 +142,7 @@ router.post(
       });
       
       const { email, phoneNumber, password, pushToken } = req.body;
+      const locationPayload = req.body.location;
 
       if ((!email && !phoneNumber) || !password) {
         console.log('Missing credentials');
@@ -175,10 +176,29 @@ router.post(
       }
 
       // Update push token if provided
-      if (pushToken) {
+      let shouldPersist = false;
+      if (pushToken && user.pushToken !== pushToken) {
         user.pushToken = pushToken;
-        await user.save();
         console.log(`Push token updated for user ${user.email}: ${pushToken}`);
+        shouldPersist = true;
+      }
+
+      if (
+        locationPayload &&
+        locationPayload.latitude !== undefined &&
+        locationPayload.longitude !== undefined
+      ) {
+        user.lastKnownLocation = {
+          latitude: Number(locationPayload.latitude),
+          longitude: Number(locationPayload.longitude),
+          address: locationPayload.address || user.lastKnownLocation?.address || null,
+          updatedAt: new Date(),
+        };
+        shouldPersist = true;
+      }
+
+      if (shouldPersist) {
+        await user.save({ validateBeforeSave: false });
       }
 
       console.log('Login successful');
@@ -195,7 +215,8 @@ router.post(
         avatar: user.avatar,
         role: user.role,
         isPhoneVerified: user.isPhoneVerified,
-        pushToken: user.pushToken
+        pushToken: user.pushToken,
+        lastKnownLocation: user.lastKnownLocation,
       };
 
       res.status(201).json({
