@@ -446,6 +446,142 @@ router.put(
   })
 );
 
+router.put(
+  "/update-user-product/:id",
+  upload.array("images"),
+  handleMulterError,
+  isAuthenticated,
+  catchAsyncErrors(async (req, res, next) => {
+    try {
+      const productId = req.params.id;
+      if (!productId || !isValidObjectId(productId)) {
+        return next(new ErrorHandler("Invalid product ID format", 400));
+      }
+
+      const product = await Product.findById(productId);
+      if (!product) {
+        return next(new ErrorHandler("Product not found!", 404));
+      }
+
+      if (!product.userId || product.userId.toString() !== req.user.id.toString()) {
+        return next(
+          new ErrorHandler(
+            "You are not authorized to update this product!",
+            403
+          )
+        );
+      }
+
+      const {
+        name,
+        description,
+        category,
+        subcategory,
+        tags,
+        originalPrice,
+        discountPrice,
+        stock,
+        unit,
+        unitCount,
+        maxPurchaseQuantity,
+      } = req.body;
+
+      if (category && !isValidObjectId(category)) {
+        return next(new ErrorHandler("Invalid category ID format", 400));
+      }
+
+      if (subcategory && !isValidObjectId(subcategory)) {
+        return next(new ErrorHandler("Invalid subcategory ID format", 400));
+      }
+
+      if (category) {
+        const categoryExists = await Category.findById(category);
+        if (!categoryExists) {
+          return next(new ErrorHandler("Category not found!", 404));
+        }
+      }
+
+      if (subcategory && category) {
+        const subcategoryExists = await Subcategory.findOne({
+          _id: subcategory,
+          category: category,
+        });
+        if (!subcategoryExists) {
+          return next(
+            new ErrorHandler(
+              "Subcategory not found or does not belong to the selected category!",
+              404
+            )
+          );
+        }
+      }
+
+      let images = [];
+      let existingImages = [];
+      if (req.body.existingImages) {
+        try {
+          if (typeof req.body.existingImages === "string") {
+            existingImages = JSON.parse(req.body.existingImages);
+          } else if (Array.isArray(req.body.existingImages)) {
+            existingImages = req.body.existingImages;
+          }
+        } catch (parseError) {
+          console.error("Error parsing existingImages:", parseError);
+          return next(new ErrorHandler("Invalid existing images format", 400));
+        }
+      }
+
+      images = images.concat(existingImages);
+
+      if (req.files && req.files.length > 0) {
+        const uploadedUrls = req.files.map((file) => file.location);
+        images = images.concat(uploadedUrls);
+      }
+
+      if (images.length === 0) {
+        return next(
+          new ErrorHandler("At least one product image is required", 400)
+        );
+      }
+
+      const validImages = images.filter((img) => {
+        return typeof img === "string" && img.trim().length > 0;
+      });
+
+      if (validImages.length === 0) {
+        return next(new ErrorHandler("No valid images provided", 400));
+      }
+
+      const updatedProduct = await Product.findByIdAndUpdate(
+        productId,
+        {
+          name,
+          description,
+          category,
+          subcategory,
+          tags,
+          originalPrice,
+          discountPrice,
+          stock,
+          unit,
+          unitCount,
+          maxPurchaseQuantity,
+          images: validImages,
+        },
+        { new: true, runValidators: true }
+      );
+
+      res.status(200).json({
+        success: true,
+        product: updatedProduct,
+        message: "Product updated successfully!",
+      });
+    } catch (error) {
+      return next(new ErrorHandler(error.message, 400));
+    }
+  })
+);
+
 // Get products by category/subcategory
 router.get(
   "/categories/items/:id",
