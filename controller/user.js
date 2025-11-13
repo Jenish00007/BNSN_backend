@@ -15,25 +15,30 @@ const router = express.Router();
 
 router.post("/create-user", upload.single("file"), async (req, res, next) => {
   try {
-    console.log('Registration request received:', {
+    console.log("Registration request received:", {
       body: req.body,
-      file: req.file ? {
-        filename: req.file.filename,
-        location: req.file.location
-      } : null
+      file: req.file
+        ? {
+            filename: req.file.filename,
+            location: req.file.location,
+          }
+        : null,
     });
 
     const { name, email, password, phoneNumber } = req.body;
-    
+
     // Validate required fields
     if (!name || !email || !password || !phoneNumber) {
-      console.log('Missing required fields:', { name, email, phoneNumber });
+      console.log("Missing required fields:", { name, email, phoneNumber });
       return next(new ErrorHandler("All fields are required", 400));
     }
 
     // Check if user exists
     const userEmail = await User.findOne({ email: email.toLowerCase().trim() });
-    console.log('Existing user check:', userEmail ? 'User found' : 'No user found');
+    console.log(
+      "Existing user check:",
+      userEmail ? "User found" : "No user found"
+    );
 
     if (userEmail) {
       return next(new ErrorHandler("User already exists", 400));
@@ -49,22 +54,25 @@ router.post("/create-user", upload.single("file"), async (req, res, next) => {
       email: email.toLowerCase().trim(),
       password,
       phoneNumber,
-      avatar: req.file.location
+      avatar: req.file.location,
     };
-    console.log('Creating user with data:', { ...userData, password: '[REDACTED]' });
+    console.log("Creating user with data:", {
+      ...userData,
+      password: "[REDACTED]",
+    });
 
     try {
       // Create user
       const user = await User.create(userData);
-      console.log('User created successfully:', { 
-        id: user._id, 
-        email: user.email, 
-        name: user.name 
+      console.log("User created successfully:", {
+        id: user._id,
+        email: user.email,
+        name: user.name,
       });
 
       // Send response
       const token = user.getJwtToken();
-      console.log('Generated token for user');
+      console.log("Generated token for user");
 
       res.status(201).json({
         success: true,
@@ -75,15 +83,15 @@ router.post("/create-user", upload.single("file"), async (req, res, next) => {
           name: user.name,
           email: user.email,
           phoneNumber: user.phoneNumber,
-          avatar: user.avatar
-        }
+          avatar: user.avatar,
+        },
       });
     } catch (dbError) {
-      console.error('Database error during user creation:', dbError);
+      console.error("Database error during user creation:", dbError);
       return next(new ErrorHandler(dbError.message, 400));
     }
   } catch (err) {
-    console.error('Registration error:', err);
+    console.error("Registration error:", err);
     return next(new ErrorHandler(err.message, 400));
   }
 });
@@ -121,11 +129,11 @@ router.put(
           email: user.email,
           phoneNumber: user.phoneNumber,
           avatar: user.avatar,
-          pushToken: user.pushToken
-        }
+          pushToken: user.pushToken,
+        },
       });
     } catch (error) {
-      console.error('Error updating push token:', error);
+      console.error("Error updating push token:", error);
       return next(new ErrorHandler(error.message, 500));
     }
   })
@@ -136,40 +144,50 @@ router.post(
   "/login-user",
   catchAsyncErrors(async (req, res, next) => {
     try {
-      console.log('Login attempt with:', { 
+      console.log("Login attempt with:", {
         email: req.body.email,
-        phoneNumber: req.body.phoneNumber 
+        phoneNumber: req.body.phoneNumber,
       });
-      
+
       const { email, phoneNumber, password, pushToken } = req.body;
       const locationPayload = req.body.location;
 
       if ((!email && !phoneNumber) || !password) {
-        console.log('Missing credentials');
-        return next(new ErrorHandler("Please provide email/phone and password", 400));
+        console.log("Missing credentials");
+        return next(
+          new ErrorHandler("Please provide email/phone and password", 400)
+        );
       }
 
       // Find user with either email or phone number
       let user;
       if (email) {
-        user = await User.findOne({ email: email.toLowerCase().trim() }).select("+password");
+        user = await User.findOne({ email: email.toLowerCase().trim() }).select(
+          "+password"
+        );
       } else {
         user = await User.findOne({ phoneNumber }).select("+password");
       }
-      
-      console.log('User lookup result:', user ? 'User found' : 'User not found');
+
+      console.log(
+        "User lookup result:",
+        user ? "User found" : "User not found"
+      );
 
       if (!user) {
-        console.log('No user found');
+        console.log("No user found");
         return next(new ErrorHandler("User doesn't exist", 400));
       }
 
       // compare password with database password
       const isPasswordValid = await user.comparePassword(password);
-      console.log('Password validation:', isPasswordValid ? 'Valid' : 'Invalid');
+      console.log(
+        "Password validation:",
+        isPasswordValid ? "Valid" : "Invalid"
+      );
 
       if (!isPasswordValid) {
-        console.log('Invalid password');
+        console.log("Invalid password");
         return next(
           new ErrorHandler("Please provide the correct information", 400)
         );
@@ -188,12 +206,36 @@ router.post(
         locationPayload.latitude !== undefined &&
         locationPayload.longitude !== undefined
       ) {
+        const locationAddress =
+          locationPayload.address || user.lastKnownLocation?.address || null;
+
         user.lastKnownLocation = {
           latitude: Number(locationPayload.latitude),
           longitude: Number(locationPayload.longitude),
-          address: locationPayload.address || user.lastKnownLocation?.address || null,
+          address: locationAddress,
           updatedAt: new Date(),
         };
+
+        // Also add/update address in addresses array
+        if (locationAddress) {
+          // Check if user already has a "Current Location" address
+          const existingCurrentLocationIndex = user.addresses.findIndex(
+            (addr) => addr.addressType === "Current Location"
+          );
+
+          if (existingCurrentLocationIndex !== -1) {
+            // Update existing address
+            user.addresses[existingCurrentLocationIndex].address1 =
+              locationAddress;
+          } else {
+            // Add new address to the array
+            user.addresses.push({
+              address1: locationAddress,
+              addressType: "Current Location",
+            });
+          }
+        }
+
         shouldPersist = true;
       }
 
@@ -201,11 +243,11 @@ router.post(
         await user.save({ validateBeforeSave: false });
       }
 
-      console.log('Login successful');
-      
+      console.log("Login successful");
+
       // Generate token
       const token = user.getJwtToken();
-      
+
       // Return user data without sensitive information
       const userData = {
         id: user._id,
@@ -222,10 +264,10 @@ router.post(
       res.status(201).json({
         success: true,
         token,
-        user: userData
+        user: userData,
       });
     } catch (error) {
-      console.error('Login error:', error);
+      console.error("Login error:", error);
       return next(new ErrorHandler(error.message, 500));
     }
   })
@@ -527,11 +569,10 @@ router.post(
       await user.save({ validateBeforeSave: false });
 
       const emailTemplate = `Your OTP for password reset is: ${otp}\n\nThis OTP will expire in 10 minutes.\n\nIf you have not requested this email then, please ignore it.`;
-      
+
       try {
-        
         await sendEmail(user.email, `Password Recovery OTP`, emailTemplate);
-        
+
         res.status(200).json({
           success: true,
           message: `OTP sent to ${user.email} successfully`,
@@ -567,7 +608,9 @@ router.post(
       } else if (phoneNumber) {
         user = await User.findOne({ phoneNumber });
       } else {
-        return next(new ErrorHandler("Please provide either email or phone number", 400));
+        return next(
+          new ErrorHandler("Please provide either email or phone number", 400)
+        );
       }
 
       if (!user) {
@@ -576,7 +619,9 @@ router.post(
 
       // Prevent admin user login through OTP
       if (user.role === "Admin") {
-        return next(new ErrorHandler("Admin users cannot login through OTP", 403));
+        return next(
+          new ErrorHandler("Admin users cannot login through OTP", 403)
+        );
       }
 
       const isValidOTP = user.verifyOTP(otp);
@@ -596,21 +641,21 @@ router.post(
         phoneNumber: user.phoneNumber,
         avatar: user.avatar,
         role: user.role,
-        isPhoneVerified: user.isPhoneVerified
+        isPhoneVerified: user.isPhoneVerified,
       };
 
       // Set the token in a cookie
       res.cookie("token", token, {
         expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production"
+        secure: process.env.NODE_ENV === "production",
       });
 
       res.status(200).json({
         success: true,
         message: "OTP verified successfully",
         token,
-        user: userData
+        user: userData,
       });
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));
@@ -669,7 +714,9 @@ router.post(
       const user = await User.findOne({ phoneNumber });
 
       if (!user) {
-        return next(new ErrorHandler("No user found with this phone number", 404));
+        return next(
+          new ErrorHandler("No user found with this phone number", 404)
+        );
       }
 
       // Generate OTP
@@ -684,7 +731,7 @@ router.post(
         success: true,
         message: "OTP sent successfully",
         // Remove this in production
-        otp: process.env.NODE_ENV === "development" ? otp : undefined
+        otp: process.env.NODE_ENV === "development" ? otp : undefined,
       });
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));
@@ -704,7 +751,10 @@ router.post(
       }
 
       // Find admin user
-      const user = await User.findOne({ email: email.toLowerCase().trim(), role: "Admin" }).select("+password");
+      const user = await User.findOne({
+        email: email.toLowerCase().trim(),
+        role: "Admin",
+      }).select("+password");
 
       if (!user) {
         return next(new ErrorHandler("Invalid admin credentials", 401));
