@@ -89,6 +89,33 @@ const productSchema = new mongoose.Schema({
     ref: "User",
     required: false, // Optional since sellers can also create products
   },
+  status: {
+    type: String,
+    enum: ["active", "sold", "inactive"],
+    default: "active",
+    index: true,
+  },
+  expiresAt: {
+    type: Date,
+    default: () => Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
+    index: true,
+  },
+  soldAt: {
+    type: Date,
+    default: null,
+  },
+  inactiveAt: {
+    type: Date,
+    default: null,
+  },
+  soldReason: {
+    type: String,
+    default: null,
+  },
+  inactiveReason: {
+    type: String,
+    default: null,
+  },
   sold_out: {
     type: Number,
     default: 0,
@@ -114,5 +141,13 @@ productSchema.index({ userId: 1 });
 productSchema.index({ category: 1 });
 productSchema.index({ subcategory: 1 });
 productSchema.index({ createdAt: -1 });
+productSchema.index({ status: 1, expiresAt: 1 });
+
+productSchema.pre("save", function (next) {
+  if (!this.expiresAt) {
+    this.expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  }
+  next();
+});
 
 module.exports = mongoose.model("Product", productSchema);
