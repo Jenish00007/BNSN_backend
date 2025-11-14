@@ -366,8 +366,11 @@ router.get(
       const product = await Product.findById(req.params.id)
         .populate("category", "name")
         .populate("subcategory", "name")
-        .populate("shopId", "name avatar address email phoneNumber")
-        .populate("userId", "name avatar email phoneNumber");
+        .populate(
+          "shopId",
+          "name avatar address email phoneNumber hidePhoneNumber"
+        )
+        .populate("userId", "name avatar email phoneNumber hidePhoneNumber");
 
       if (!product) {
         return next(new ErrorHandler("Product not found!", 404));
@@ -393,6 +396,7 @@ router.get(
           avatar: productObj.userId.avatar,
           email: productObj.userId.email,
           phoneNumber: productObj.userId.phoneNumber,
+          hidePhoneNumber: productObj.userId.hidePhoneNumber,
         };
       }
 

@@ -3,6 +3,7 @@ const ErrorHandler = require("../utils/ErrorHandler");
 const catchAsyncErrors = require("../middleware/catchAsyncErrors");
 const express = require("express");
 const { upload } = require("../multer");
+const { getChatBlockInfo } = require("../utils/chatGuards");
 const router = express.Router();
 const path = require("path");
 
@@ -23,6 +24,11 @@ router.post(
       messageData.conversationId = req.body.conversationId;
       messageData.sender = req.body.sender;
       messageData.text = req.body.text;
+
+      const chatGate = await getChatBlockInfo(messageData.conversationId);
+      if (chatGate.blocked) {
+        return next(new ErrorHandler(chatGate.reason, 403));
+      }
 
       const message = new Messages({
         conversationId: messageData.conversationId,

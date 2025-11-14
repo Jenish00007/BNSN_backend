@@ -13,9 +13,24 @@ const { upload, handleMulterError } = require("../multer");
 const ErrorHandler = require("../utils/ErrorHandler");
 const mongoose = require("mongoose");
 
+const THIRTY_DAYS_IN_MS = 30 * 24 * 60 * 60 * 1000;
+
 // Helper function to validate MongoDB ObjectId
 const isValidObjectId = (id) => {
   return mongoose.Types.ObjectId.isValid(id);
+};
+
+const getRequesterId = (req) => {
+  if (req.user?._id) return req.user._id.toString();
+  if (req.seller?._id) return req.seller._id.toString();
+  return null;
+};
+
+const canManageProduct = (product, requesterId) => {
+  if (!requesterId || !product) return false;
+  if (product.userId && product.userId.toString() === requesterId) return true;
+  if (product.shopId && product.shopId.toString() === requesterId) return true;
+  return false;
 };
 
 // create product
@@ -864,6 +879,106 @@ router.get(
           data: units,
         });
       }
+    } catch (error) {
+      return next(new ErrorHandler(error.message, 500));
+    }
+  })
+);
+
+router.put(
+  "/mark-product-sold/:id",
+  isAuthenticated,
+  catchAsyncErrors(async (req, res, next) => {
+    try {
+      const product = await Product.findById(req.params.id);
+      if (!product) {
+        return next(new ErrorHandler("Product not found", 404));
+      }
+
+      const requesterId = getRequesterId(req);
+      if (!canManageProduct(product, requesterId)) {
+        return next(new ErrorHandler("Not authorized to update this product", 403));
+      }
+
+      product.status = "sold";
+      product.soldAt = new Date();
+      product.soldReason = req.body?.reason || null;
+      product.inactiveAt = null;
+      product.inactiveReason = null;
+      product.sold_out = 1;
+
+      await product.save();
+
+      res.status(200).json({
+        success: true,
+        product,
+      });
+    } catch (error) {
+      return next(new ErrorHandler(error.message, 500));
+    }
+  })
+);
+
+router.put(
+  "/mark-product-inactive/:id",
+  isAuthenticated,
+  catchAsyncErrors(async (req, res, next) => {
+    try {
+      const product = await Product.findById(req.params.id);
+      if (!product) {
+        return next(new ErrorHandler("Product not found", 404));
+      }
+
+      const requesterId = getRequesterId(req);
+      if (!canManageProduct(product, requesterId)) {
+        return next(new ErrorHandler("Not authorized to update this product", 403));
+      }
+
+      product.status = "inactive";
+      product.inactiveAt = new Date();
+      product.inactiveReason = req.body?.reason || "Manually removed";
+
+      await product.save();
+
+      res.status(200).json({
+        success: true,
+        product,
+      });
+    } catch (error) {
+      return next(new ErrorHandler(error.message, 500));
+    }
+  })
+);
+
+router.put(
+  "/republish-product/:id",
+  isAuthenticated,
+  catchAsyncErrors(async (req, res, next) => {
+    try {
+      const product = await Product.findById(req.params.id);
+      if (!product) {
+        return next(new ErrorHandler("Product not found", 404));
+      }
+
+      const requesterId = getRequesterId(req);
+      if (!canManageProduct(product, requesterId)) {
+        return next(new ErrorHandler("Not authorized to update this product", 403));
+      }
+
+      product.status = "active";
+      product.expiresAt = new Date(Date.now() + THIRTY_DAYS_IN_MS);
+      product.inactiveAt = null;
+      product.inactiveReason = null;
+      product.soldAt = null;
+      product.soldReason = null;
+      product.sold_out = 0;
+
+      await product.save();
+
+      res.status(200).json({
+        success: true,
+        product,
+      });
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));
     }
