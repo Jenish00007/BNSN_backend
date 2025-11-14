@@ -132,6 +132,10 @@ const shopSchema = new mongoose.Schema({
   },
   resetPasswordToken: String,
   resetPasswordTime: Date,
+  hidePhoneNumber: {
+    type: Boolean,
+    default: false
+  },
 });
 
 // Create index for geospatial queries

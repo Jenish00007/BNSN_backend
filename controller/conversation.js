@@ -1,4 +1,5 @@
 const Conversation = require("../model/conversation");
+const Product = require("../model/product");
 const ErrorHandler = require("../utils/ErrorHandler");
 const catchAsyncErrors = require("../middleware/catchAsyncErrors");
 const express = require("express");
@@ -11,6 +12,22 @@ router.post(
   catchAsyncErrors(async (req, res, next) => {
     try {
       const { groupTitle, userId, sellerId, productId } = req.body;
+
+      if (productId) {
+        const product = await Product.findById(productId);
+        if (!product) {
+          return next(new ErrorHandler("Product not found", 404));
+        }
+
+        if (product.status && product.status !== "active") {
+          return next(
+            new ErrorHandler(
+              "This listing is no longer available for new conversations",
+              400
+            )
+          );
+        }
+      }
 
       // Build query to check for existing conversation
       const query = {
@@ -127,6 +144,35 @@ router.get(
               }
             } catch (err) {
               console.error("Error fetching other user:", err);
+            }
+          }
+          if (conv.productId) {
+            try {
+              const product = await Product.findById(conv.productId).select(
+                "name status expiresAt soldAt inactiveAt"
+              );
+              if (product) {
+                convObj.product = {
+                  _id: product._id,
+                  name: product.name,
+                  status: product.status,
+                  expiresAt: product.expiresAt,
+                  soldAt: product.soldAt,
+                  inactiveAt: product.inactiveAt,
+                };
+                convObj.productStatus = product.status;
+                if (product.status && product.status !== "active") {
+                  convObj.isChatDisabled = true;
+                  convObj.chatDisabledReason =
+                    product.status === "sold"
+                      ? "Product marked as sold"
+                      : "Listing is inactive";
+                } else {
+                  convObj.isChatDisabled = false;
+                }
+              }
+            } catch (err) {
+              console.error("Error fetching product for conversation:", err);
             }
           }
           

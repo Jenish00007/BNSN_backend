@@ -94,6 +94,10 @@ const userSchema = new mongoose.Schema({
   isPhoneVerified: {
     type: Boolean,
     default: false
+  },
+  hidePhoneNumber: {
+    type: Boolean,
+    default: false
   }
 });
 

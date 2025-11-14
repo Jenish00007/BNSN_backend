@@ -15,6 +15,10 @@ const Shop = require("./model/shop");
 const User = require("./model/user");
 const Product = require("./model/product");
 const { sendFCMNotification } = require("./utils/fcmService");
+const { getChatBlockInfo } = require("./utils/chatGuards");
+
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+const PRODUCT_EXPIRY_CHECK_INTERVAL = 12 * 60 * 60 * 1000; // every 12 hours
 
 // config
 if (process.env.NODE_ENV !== "PRODUCTION") {
@@ -145,6 +149,41 @@ app.use("/v2/deliveryman", deliverymanRoutes);
 app.use("/v2/units", unitRoutes);
 app.use("/v2/fcm", fcmRoutes);
 
+const markExpiredProducts = async () => {
+  try {
+    const now = new Date();
+    const expiryThreshold = new Date(now.getTime() - THIRTY_DAYS_MS);
+
+    const result = await Product.updateMany(
+      {
+        status: "active",
+        $or: [
+          { expiresAt: { $lte: now } },
+          { expiresAt: null, createdAt: { $lte: expiryThreshold } },
+          { expiresAt: { $exists: false }, createdAt: { $lte: expiryThreshold } },
+        ],
+      },
+      {
+        status: "inactive",
+        inactiveAt: now,
+        inactiveReason: "Automatically marked inactive after 30 days",
+      }
+    );
+
+    if (result.modifiedCount) {
+      console.log(
+        `[Product Lifecycle] Marked ${result.modifiedCount} product(s) as inactive due to expiry`
+      );
+    }
+  } catch (error) {
+    console.error("[Product Lifecycle] Failed to mark expired products:", error);
+  }
+};
+
+// Run once on boot and then on interval
+markExpiredProducts();
+setInterval(markExpiredProducts, PRODUCT_EXPIRY_CHECK_INTERVAL);
+
 // Socket.io connection handling
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
@@ -174,6 +213,19 @@ io.on("connection", (socket) => {
       
       const { conversationId, sender, text } = data;
       console.log(`[SEND-MESSAGE] Data:`, { conversationId, sender, text: text.substring(0, 50) });
+
+      const chatGate = await getChatBlockInfo(conversationId);
+      if (chatGate.blocked) {
+        console.log(
+          `[SEND-MESSAGE] Conversation ${conversationId} is blocked: ${chatGate.reason}`
+        );
+        socket.emit("chat-disabled", {
+          conversationId,
+          reason: chatGate.reason,
+          productStatus: chatGate.productStatus || null,
+        });
+        return;
+      }
 
       // Save message to database
       console.log(`[SEND-MESSAGE] Saving message to database...`);
