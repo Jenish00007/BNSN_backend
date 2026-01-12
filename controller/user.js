@@ -517,7 +517,7 @@ router.get(
   isAdmin("Admin"),
   catchAsyncErrors(async (req, res, next) => {
     try {
-      const users = await User.find().sort({
+      const users = await User.find().select("userId name email phoneNumber role createdAt avatar isPhoneVerified").sort({
         createdAt: -1,
       });
       res.status(201).json({

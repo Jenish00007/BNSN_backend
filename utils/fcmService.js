@@ -29,6 +29,21 @@ const sendFCMNotification = async (fcmToken, title, body, data = {}) => {
       };
     }
 
+    // Determine notification type and configure accordingly
+    const notificationType = data.type || 'GENERAL';
+    const isChatMessage = notificationType === 'NEW_MESSAGE';
+    
+    let androidSound = "default";
+    let androidChannelId = "default";
+    let iossSound = "default";
+    
+    if (isChatMessage) {
+      // Chat message specific configuration
+      androidSound = "default"; // Use default sound for compatibility
+      androidChannelId = "chat_messages_channel"; // Dedicated chat channel
+      iossSound = "default"; // Use default iOS sound
+    }
+
     const message = {
       token: fcmToken,
 
@@ -36,6 +51,7 @@ const sendFCMNotification = async (fcmToken, title, body, data = {}) => {
       notification: {
         title,
         body,
+        // Remove sound field to use system default sound
       },
 
       // ANDROID HIGH-PRIORITY CONFIGURATION
@@ -45,12 +61,12 @@ const sendFCMNotification = async (fcmToken, title, body, data = {}) => {
         notification: {
           title,
           body,
-          sound: "alarm", // Must exist in res/raw/alarm.mp3
-          channelId: "order_alert_channel", // High-priority channel
-          vibrateTimingsMillis: [0, 1000, 500, 1000, 500, 1000],
+          // Remove sound field - will use system default
+          channelId: androidChannelId, // Use dedicated channel for chat
+          vibrateTimingsMillis: isChatMessage ? [0, 250, 500, 250] : [0, 1000, 500, 1000, 500, 1000],
           lightSettings: {
-            color: "#FF6B00", // Orange color for orders
-            lightOnDurationMillis: 1000,
+            color: isChatMessage ? "#007AFF" : "#FF6B00", // Blue for chat, Orange for orders
+            lightOnDurationMillis: isChatMessage ? 500 : 1000,
             lightOffDurationMillis: 500,
           },
           visibility: "public",
@@ -72,12 +88,7 @@ const sendFCMNotification = async (fcmToken, title, body, data = {}) => {
               title,
               body,
             },
-            // Critical alert (bypasses Do Not Disturb)
-            sound: {
-              critical: 1,
-              name: "alarm_sound.caf",
-              volume: 1.0,
-            },
+            // Remove custom sound - will use system default
             badge: 1,
             contentAvailable: 1, // Wake app in background
             interruptionLevel: "critical", // iOS 15+
@@ -96,11 +107,12 @@ const sendFCMNotification = async (fcmToken, title, body, data = {}) => {
         priority: "high",
         wake_device: "true",
         shouldPlaySound: "true",
+        notification_type: notificationType, // Add notification type for frontend handling
       },
 
       // FCM options
       fcmOptions: {
-        analyticsLabel: "deliveryman_order_alert",
+        analyticsLabel: isChatMessage ? "chat_message_alert" : "general_alert",
       },
     };
 
@@ -110,6 +122,9 @@ const sendFCMNotification = async (fcmToken, title, body, data = {}) => {
       success: true,
       messageId: response,
       fcmToken: fcmToken,
+      notificationType: notificationType,
+      soundUsed: androidSound,
+      channelUsed: androidChannelId,
     };
   } catch (error) {
     console.error("Error sending FCM notification:", error);

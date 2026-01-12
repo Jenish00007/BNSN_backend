@@ -1,6 +1,11 @@
 const mongoose = require('mongoose');
 
 const categorySchema = new mongoose.Schema({
+    categoryId: {
+        type: Number,
+        required: true,
+        unique: true
+    },
     name: {
         type: String,
         required: true,
@@ -9,7 +14,8 @@ const categorySchema = new mongoose.Schema({
     module: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Module',
-        required: true
+        required: false, // Make module optional
+        default: null
     },
     image: {
         type: String,
