@@ -4,19 +4,13 @@ const Subcategory = require('../model/Subcategory');
 // Create a new category
 exports.createCategory = async (req, res) => {
     try {
+                console.log(req.body)
+
         const { name, description, module } = req.body;
-        
         if (!name) {
             return res.status(400).json({
                 success: false,
                 error: 'Category name is required'
-            });
-        }
-
-        if (!module) {
-            return res.status(400).json({
-                success: false,
-                error: 'Module ID is required'
             });
         }
 
@@ -38,10 +32,15 @@ exports.createCategory = async (req, res) => {
             });
         }
 
+        // Get the highest existing categoryId and increment by 1
+        const lastCategory = await Category.findOne().sort({ categoryId: -1 });
+        const nextCategoryId = (lastCategory && lastCategory.categoryId) ? lastCategory.categoryId + 1 : 1;
+
         const category = new Category({
+            categoryId: nextCategoryId,
             name,
             description,
-            module,
+            module: module || null,
             image
         });
 
@@ -113,7 +112,12 @@ exports.getCategoryById = async (req, res) => {
 exports.updateCategory = async (req, res) => {
     try {
         const { name, description, module } = req.body;
-        const updateData = { name, description, module };
+        const updateData = { name, description };
+        
+        // Only add module to updateData if it exists
+        if (module !== undefined) {
+            updateData.module = module;
+        }
         
         if (req.file) {
             // Get the S3 URL from the uploaded file

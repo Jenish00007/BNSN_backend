@@ -35,7 +35,7 @@ router.get("/dashboard-stats", isAuthenticated, isAdmin("Admin"), catchAsyncErro
 // Get all users
 router.get("/users", isAuthenticated, isAdmin("Admin"), catchAsyncErrors(async (req, res, next) => {
   try {
-    const users = await User.find().sort({ createdAt: -1 });
+    const users = await User.find().select("userId name email phoneNumber role createdAt avatar isPhoneVerified").sort({ createdAt: -1 });
     res.status(200).json({
       success: true,
       users
@@ -62,6 +62,7 @@ router.get("/sellers", isAuthenticated, isAdmin("Admin"), catchAsyncErrors(async
 router.get("/products", isAuthenticated, isAdmin("Admin"), catchAsyncErrors(async (req, res, next) => {
   try {
     const products = await Product.find()
+      .select("productId name description originalPrice discountPrice stock sold images category subcategory tags shopId userId createdAt unitCount unit")
       .populate("shop", "name")
       .populate("category", "name")
       .populate("subcategory", "name")

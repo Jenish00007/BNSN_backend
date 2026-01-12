@@ -1,6 +1,12 @@
 const mongoose = require("mongoose");
 
 const orderSchema = new mongoose.Schema({
+  orderId: {
+    type: Number,
+    unique: true,
+    sparse: true, // Allow null values but ensure uniqueness when present
+    index: true
+  },
   cart: {
     type: Array,
     required: true,
@@ -121,6 +127,22 @@ const orderSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Shop'
   }
+});
+
+// Auto-increment orderId
+orderSchema.pre("save", async function (next) {
+  if (this.isNew && !this.orderId) {
+    try {
+      // Get the highest orderId from existing orders
+      const lastOrder = await this.constructor.findOne({}, {}, { sort: { orderId: -1 } });
+      const nextOrderId = lastOrder && lastOrder.orderId ? lastOrder.orderId + 1 : 1;
+      this.orderId = nextOrderId;
+    } catch (error) {
+      // If there's an error, default to 1
+      this.orderId = 1;
+    }
+  }
+  next();
 });
 
 // Add indexes for better query performance

@@ -4,6 +4,12 @@ const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 
 const userSchema = new mongoose.Schema({
+  userId: {
+    type: Number,
+    unique: true,
+    sparse: true, // Allow null values but ensure uniqueness when present
+    index: true
+  },
   name: {
     type: String,
     required: [true, "Please enter your name!"],
@@ -99,6 +105,22 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   }
+});
+
+// Auto-increment userId
+userSchema.pre("save", async function (next) {
+  if (this.isNew && !this.userId) {
+    try {
+      // Get the highest userId from existing users
+      const lastUser = await this.constructor.findOne({}, {}, { sort: { userId: -1 } });
+      const nextUserId = lastUser && lastUser.userId ? lastUser.userId + 1 : 1;
+      this.userId = nextUserId;
+    } catch (error) {
+      // If there's an error, default to 1
+      this.userId = 1;
+    }
+  }
+  next();
 });
 
 //  Hash password

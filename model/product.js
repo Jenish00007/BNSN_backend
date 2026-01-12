@@ -1,6 +1,12 @@
 const mongoose = require("mongoose");
 
 const productSchema = new mongoose.Schema({
+  productId: {
+    type: Number,
+    unique: true,
+    sparse: true, // Allow null values but ensure uniqueness when present
+    index: true
+  },
   name: {
     type: String,
     required: [true, "Please enter your product name!"],
@@ -124,6 +130,22 @@ const productSchema = new mongoose.Schema({
     type: Date,
     default: Date.now(),
   },
+});
+
+// Auto-increment productId
+productSchema.pre("save", async function (next) {
+  if (this.isNew && !this.productId) {
+    try {
+      // Get the highest productId from existing products
+      const lastProduct = await this.constructor.findOne({}, {}, { sort: { productId: -1 } });
+      const nextProductId = lastProduct && lastProduct.productId ? lastProduct.productId + 1 : 1;
+      this.productId = nextProductId;
+    } catch (error) {
+      // If there's an error, default to 1
+      this.productId = 1;
+    }
+  }
+  next();
 });
 
 // Add validation to ensure either shopId or userId exists
