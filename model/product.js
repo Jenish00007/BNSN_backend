@@ -23,7 +23,7 @@ const productSchema = new mongoose.Schema({
   subcategory: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Subcategory',
-    required: [true, "Please select a subcategory!"],
+    required: false,
   },
   tags: {
     type: String,
@@ -94,6 +94,12 @@ const productSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
     required: false, // Optional since sellers can also create products
+  },
+  // Track if this was a paid post or free post
+  isPaid: {
+    type: Boolean,
+    default: false, // Default to free post
+    required: false
   },
   status: {
     type: String,
