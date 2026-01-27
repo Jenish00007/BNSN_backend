@@ -4,7 +4,7 @@ const subcategoryController = require('../controller/subcategoryController');
 const { upload } = require('../multer');
 
 // Create a new subcategory
-router.post('/', upload.single('image'), subcategoryController.createSubcategory);
+router.post('/', subcategoryController.createSubcategory);
 
 // Get all subcategories
 router.get('/', subcategoryController.getAllSubcategories);
@@ -13,7 +13,7 @@ router.get('/', subcategoryController.getAllSubcategories);
 router.get('/:id', subcategoryController.getSubcategoryById);
 
 // Update subcategory
-router.put('/:id', upload.single('image'), subcategoryController.updateSubcategory);
+router.put('/:id', subcategoryController.updateSubcategory);
 
 // Delete subcategory
 router.delete('/:id', subcategoryController.deleteSubcategory);

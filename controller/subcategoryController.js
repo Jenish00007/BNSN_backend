@@ -5,21 +5,18 @@ exports.createSubcategory = async (req, res) => {
     try {
         const { name, description, category } = req.body;
         
-        if (!req.file) {
-            return res.status(400).json({
-                success: false,
-                error: 'Image file is required'
-            });
-        }
-
-        const image = req.file.location || req.file.key;
-
-        const subcategory = new Subcategory({
+        const subcategoryData = {
             name,
             description,
-            category,
-            image
-        });
+            category
+        };
+
+        // Add image only if it exists
+        if (req.file) {
+            subcategoryData.image = req.file.location || req.file.key;
+        }
+
+        const subcategory = new Subcategory(subcategoryData);
 
         await subcategory.save();
         res.status(201).json({

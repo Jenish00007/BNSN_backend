@@ -65,8 +65,8 @@ router.post(
         return next(new ErrorHandler("Invalid category ID format", 400));
       }
 
-      // Validate subcategory ID
-      if (!subcategory || !isValidObjectId(subcategory)) {
+      // Validate subcategory ID (optional)
+      if (subcategory && !isValidObjectId(subcategory)) {
         return next(new ErrorHandler("Invalid subcategory ID format", 400));
       }
 
@@ -92,18 +92,20 @@ router.post(
         return next(new ErrorHandler("Category not found!", 404));
       }
 
-      // Check if subcategory exists and belongs to the selected category
-      const subcategoryExists = await Subcategory.findOne({
-        _id: subcategory,
-        category: category,
-      });
-      if (!subcategoryExists) {
-        return next(
-          new ErrorHandler(
-            "Subcategory not found or does not belong to the selected category!",
-            404
-          )
-        );
+      // Check if subcategory exists and belongs to the selected category (optional)
+      if (subcategory) {
+        const subcategoryExists = await Subcategory.findOne({
+          _id: subcategory,
+          category: category,
+        });
+        if (!subcategoryExists) {
+          return next(
+            new ErrorHandler(
+              "Subcategory not found or does not belong to the selected category!",
+              404
+            )
+          );
+        }
       }
 
       const files = req.files;
@@ -113,7 +115,14 @@ router.post(
       productData.images = imageUrls;
       productData.shop = shop;
 
+      // Handle isPaid field - default to false (free post) if not provided
+      productData.isPaid = productData.isPaid === 'true' || productData.isPaid === true;
+      
+      console.log(`Creating product for user ${userId} in category ${category}, isPaid: ${productData.isPaid}`);
+
       const product = await Product.create(productData);
+
+      console.log(`Product created successfully: ${product._id}, isPaid: ${product.isPaid}`);
 
       res.status(201).json({
         success: true,
@@ -168,6 +177,8 @@ router.delete(
         return next(new ErrorHandler("Product not found!", 404));
       }
 
+      console.log(`Deleting shop product: ${productId}, isPaid: ${productData.isPaid}`);
+
       await Product.findByIdAndDelete(productId);
 
       res.status(200).json({
@@ -175,6 +186,47 @@ router.delete(
         message: "Product deleted successfully!",
       });
     } catch (error) {
+      return next(new ErrorHandler(error.message, 400));
+    }
+  })
+);
+
+// delete user product
+router.delete(
+  "/delete-user-product/:id",
+  isAuthenticated,
+  catchAsyncErrors(async (req, res, next) => {
+    try {
+      const productId = req.params.id;
+      const userId = req.user._id;
+
+      if (!productId || !isValidObjectId(productId)) {
+        return next(new ErrorHandler("Invalid product ID format", 400));
+      }
+
+      const productData = await Product.findById(productId);
+
+      if (!productData) {
+        return next(new ErrorHandler("Product not found!", 404));
+      }
+
+      // Check if the product belongs to the authenticated user
+      if (productData.userId.toString() !== userId.toString()) {
+        return next(new ErrorHandler("You are not authorized to delete this product!", 403));
+      }
+
+      console.log(`Deleting user product: ${productId}, userId: ${userId}, isPaid: ${productData.isPaid}`);
+
+      await Product.findByIdAndDelete(productId);
+
+      console.log(`User product deleted successfully: ${productId}`);
+
+      res.status(200).json({
+        success: true,
+        message: "Product deleted successfully!",
+      });
+    } catch (error) {
+      console.error('Error deleting user product:', error);
       return next(new ErrorHandler(error.message, 400));
     }
   })
