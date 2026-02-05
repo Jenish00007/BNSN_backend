@@ -136,6 +136,185 @@ const productSchema = new mongoose.Schema({
     type: Date,
     default: Date.now(),
   },
+  
+  // Category-specific fields - Add all possible fields from category forms
+  // ANIMAL category
+  animalName: { type: String },
+  breed: { type: String },
+  age: { type: String },
+  milkYield: { type: String },
+  gender: { type: String },
+  vaccinated: { type: String },
+  pregnantOrLactating: { type: String },
+  quantityAvailable: { type: String },
+  feedType: { type: String },
+  housingType: { type: String },
+  
+  // BIRD category
+  birdName: { type: String },
+  
+  // TREE category
+  treeName: { type: String },
+  ageOfTree: { type: String },
+  height: { type: String },
+  trunkGirth: { type: String },
+  purpose: { type: String },
+  
+  // PADDY_RICE category
+  paddyRiceName: { type: String },
+  listingType: { type: String },
+  varietyName: { type: String },
+  farmerMillName: { type: String },
+  harvestYear: { type: String },
+  organic: { type: String },
+  pricePer: { type: String },
+  
+  // VEGETABLE category
+  vegetableName: { type: String },
+  gradeQuality: { type: String },
+  harvestDate: { type: String },
+  packingType: { type: String },
+  
+  // SEED category
+  seedName: { type: String },
+  seedType: { type: String },
+  
+  // FRUIT category
+  fruitName: { type: String },
+  
+  // CAR category
+  carBrand: { type: String },
+  carModel: { type: String },
+  carVariant: { type: String },
+  manufacturingYear: { type: String },
+  fuelType: { type: String },
+  transmission: { type: String },
+  kilometersDriven: { type: Number },
+  numberOfOwners: { type: String },
+  rcAvailable: { type: String },
+  insuranceStatus: { type: String },
+  insuranceExpiryDate: { type: String },
+  
+  // BIKE category
+  brand: { type: String },
+  model: { type: String },
+  variant: { type: String },
+  gearType: { type: String },
+  condition: { type: String },
+  workingStatus: { type: String },
+  batteryHealth: { type: String },
+  networkType: { type: String },
+  
+  // MACHINERY category
+  machineryName: { type: String },
+  modelNumber: { type: String },
+  powerCapacity: { type: String },
+  fuelPowerType: { type: String },
+  phase: { type: String },
+  
+  // PROPERTY category
+  listingType: { type: String },
+  propertyType: { type: String },
+  size: { type: String },
+  propertyCondition: { type: String },
+  
+  // ELECTRONICS category
+  electronicsName: { type: String },
+  keySpecifications: { type: String },
+  powerType: { type: String },
+  purchaseYear: { type: String },
+  
+  // MOBILE category
+  mobileName: { type: String },
+  modelName: { type: String },
+  color: { type: String },
+  ram: { type: String },
+  storage: { type: String },
+  
+  // FURNITURE category
+  furnitureName: { type: String },
+  materialType: { type: String },
+  length: { type: String },
+  width: { type: String },
+  furnitureHeight: { type: String }, // Renamed to avoid conflict
+  
+  // FASHION category
+  fashionName: { type: String },
+  productType: { type: String },
+  brandName: { type: String },
+  fashionSize: { type: String }, // Renamed to avoid conflict
+  materialFabricType: { type: String },
+  careInstructions: { type: String },
+  
+  // JOB category
+  jobTitle: { type: String },
+  jobCategory: { type: String },
+  companyName: { type: String },
+  jobType: { type: String },
+  workLocation: { type: String },
+  workMode: { type: String },
+  experienceRequired: { type: String },
+  qualification: { type: String },
+  salaryRange: { type: String },
+  salaryType: { type: String },
+  skillsRequired: { type: String },
+  genderPreference: { type: String },
+  ageLimit: { type: String },
+  hiringType: { type: String },
+  numberOfOpenings: { type: Number },
+  joiningTime: { type: String },
+  
+  // PET category
+  petName: { type: String },
+  
+  // MUSIC_INSTRUMENT category
+  instrumentName: { type: String },
+  instrumentType: { type: String },
+  accessoriesIncluded: { type: [String] },
+  
+  // GYM_EQUIPMENT category
+  equipmentName: { type: String },
+  weightCapacity: { type: String },
+  voltagePhase: { type: String },
+  
+  // FISH category
+  fishName: { type: String },
+  catchType: { type: String },
+  catchDate: { type: String },
+  freshnessLevel: { type: String },
+  cleaned: { type: String },
+  
+  // VEHICLE category
+  vehicleName: { type: String },
+  engineCapacityPower: { type: String },
+  
+  // SERVICE category
+  serviceName: { type: String },
+  serviceTitle: { type: String },
+  serviceType: { type: String },
+  servicesOffered: { type: String },
+  experience: { type: String },
+  availability: { type: String },
+  pricingType: { type: String },
+  
+  // SCRAP category
+  scrapName: { type: String },
+  scrapTypeName: { type: String },
+  weightQuantity: { type: String },
+  
+  // SPORTS_ITEM category
+  sportsItemName: { type: String },
+  sizeWeight: { type: String },
+  ageGroup: { type: String },
+  
+  // BOOK category
+  bookCategory: { type: String },
+  bookTitle: { type: String },
+  authorName: { type: String },
+  publisher: { type: String },
+  editionYear: { type: String },
+  language: { type: String },
+  numberOfBooks: { type: Number },
 });
 
 // Auto-increment productId
