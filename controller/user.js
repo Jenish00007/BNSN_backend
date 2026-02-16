@@ -320,7 +320,7 @@ router.put(
   isAuthenticated,
   catchAsyncErrors(async (req, res, next) => {
     try {
-      const { email, phoneNumber, name, address, hidePhoneNumber } = req.body;
+      const { email, phoneNumber, name, address, hidePhoneNumber, password } = req.body;
 
       const user = await User.findById(req.user.id);
 
@@ -342,6 +342,10 @@ router.put(
       if (address) user.address = address;
       if (hidePhoneNumber !== undefined) {
         user.hidePhoneNumber = hidePhoneNumber;
+      }
+      // Update password if provided
+      if (password) {
+        user.password = password;
       }
 
       await user.save();
