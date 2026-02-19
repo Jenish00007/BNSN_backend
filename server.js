@@ -115,6 +115,7 @@ const deliverymanRoutes = require("./routes/deliveryman");
 const unitRoutes = require("./routes/unitRoutes");
 const fcmRoutes = require("./routes/fcmRoutes");
 const userPostRoutes = require("./routes/userPostRoutes");
+const contactViewsRoutes = require("./routes/contactViews");
 
 // end points
 app.use("/v2/withdraw", withdraw);
@@ -150,6 +151,7 @@ app.use("/v2/deliveryman", deliverymanRoutes);
 app.use("/v2/units", unitRoutes);
 app.use("/v2/fcm", fcmRoutes);
 app.use("/v2/user-post", userPostRoutes);
+app.use("/v2/contact-views", contactViewsRoutes);
 
 const markExpiredProducts = async () => {
   try {
