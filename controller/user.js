@@ -346,6 +346,7 @@ router.put(
       // Update password if provided
       if (password) {
         user.password = password;
+        user.markModified('password');
       }
 
       await user.save();

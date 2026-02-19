@@ -104,6 +104,27 @@ const userSchema = new mongoose.Schema({
   hidePhoneNumber: {
     type: Boolean,
     default: false
+  },
+  // Contact views and subscription fields
+  contactViews: {
+    type: Number,
+    default: 0
+  },
+  viewedContacts: [{
+    type: String, // Contact IDs that have been viewed
+    default: []
+  }],
+  hasUnlimitedContacts: {
+    type: Boolean,
+    default: false
+  },
+  subscriptionExpiry: {
+    type: Date,
+    default: null
+  },
+  contactCredits: {
+    type: Number,
+    default: 7 // Free credits
   }
 });
 

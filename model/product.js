@@ -357,4 +357,7 @@ productSchema.pre("save", function (next) {
   next();
 });
 
+// Add timestamps to the schema
+productSchema.set('timestamps', true);
+
 module.exports = mongoose.model("Product", productSchema);
