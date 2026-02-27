@@ -151,7 +151,14 @@ app.use("/v2/deliveryman", deliverymanRoutes);
 app.use("/v2/units", unitRoutes);
 app.use("/v2/fcm", fcmRoutes);
 app.use("/v2/user-post", userPostRoutes);
-app.use("/v2/contact-views", contactViewsRoutes);
+// Contact views / subscription / credits:
+// Mounted at /v2 so routes match:
+//  - GET    /v2/contact-views/:userId
+//  - PUT    /v2/contact-views/:userId
+//  - POST   /v2/contact-credits/add
+//  - POST   /v2/subscription/activate
+//  - GET    /v2/subscription/:userId
+app.use("/v2", contactViewsRoutes);
 
 const markExpiredProducts = async () => {
   try {

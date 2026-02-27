@@ -4,6 +4,7 @@ const router = express.Router();
 const {
   getUserContactViews,
   updateUserContactViews,
+  resetContactViews,
   addContactCredits,
   activateUnlimitedSubscription,
   getSubscriptionStatus
@@ -16,6 +17,9 @@ router.get("/contact-views/:userId", getUserContactViews);
 
 // PUT user contact views
 router.put("/contact-views/:userId", updateUserContactViews);
+
+// POST reset contact views and credits
+router.post("/contact-views/reset", resetContactViews);
 
 // POST add contact credits
 router.post("/contact-credits/add", addContactCredits);
