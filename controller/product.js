@@ -13,7 +13,7 @@ const { upload, handleMulterError } = require("../multer");
 const ErrorHandler = require("../utils/ErrorHandler");
 const mongoose = require("mongoose");
 
-const THIRTY_DAYS_IN_MS = 30 * 24 * 60 * 60 * 1000;
+const SIX_MONTHS_IN_MS = 180 * 24 * 60 * 60 * 1000;
 
 // Helper function to validate MongoDB ObjectId
 const isValidObjectId = (id) => {
@@ -1018,7 +1018,7 @@ router.put(
       }
 
       product.status = "active";
-      product.expiresAt = new Date(Date.now() + THIRTY_DAYS_IN_MS);
+      product.expiresAt = new Date(Date.now() + SIX_MONTHS_IN_MS);
       product.inactiveAt = null;
       product.inactiveReason = null;
       product.soldAt = null;

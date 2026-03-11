@@ -106,11 +106,12 @@ router.post(
   catchAsyncErrors(async (req, res, next) => {
     try {
       console.log("Login request body:", req.body);
-      const { email, password } = req.body;
+      const { email, password, pushToken } = req.body;
       
       console.log("Login attempt with:", { 
         email: email || 'undefined', 
         password: password ? 'provided' : 'missing',
+        pushToken: pushToken ? 'provided' : 'missing',
         bodyKeys: Object.keys(req.body)
       });
 
@@ -136,6 +137,13 @@ router.post(
         return next(
           new ErrorHandler("Please provide the correct information", 400)
         );
+      }
+
+      // Update push token if provided and different
+      if (pushToken && user.pushToken !== pushToken) {
+        user.pushToken = pushToken;
+        await user.save({ validateBeforeSave: false });
+        console.log("Shop push token updated successfully");
       }
 
       sendShopToken(user, 201, res);

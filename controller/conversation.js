@@ -29,6 +29,11 @@ router.post(
         }
       }
 
+      // Validate that userId and sellerId are different
+      if (userId === sellerId) {
+        return next(new ErrorHandler("Cannot create conversation with yourself", 400));
+      }
+
       // Build query to check for existing conversation
       const query = {
         members: { $all: [userId, sellerId] }
@@ -50,11 +55,14 @@ router.post(
           conversation,
         });
       } else {
-        // Create new conversation
+        // Create new conversation with proper role identification
         const conversation = await Conversation.create({
           members: [userId, sellerId],
           groupTitle: groupTitle,
           productId: productId || null,
+          // Add metadata for role identification
+          buyerId: userId,  // The user initiating the conversation is typically the buyer
+          sellerId: sellerId, // The shop owner is the seller
         });
 
         res.status(201).json({
@@ -63,7 +71,7 @@ router.post(
         });
       }
     } catch (error) {
-      return next(new ErrorHandler(error.response.message), 500);
+      return next(new ErrorHandler(error.message || error.response?.message, 500));
     }
   })
 );
@@ -110,6 +118,12 @@ router.get(
         conversations.map(async (conv) => {
           const convObj = conv.toObject();
           
+          // Determine current user's role in this conversation
+          const isBuyer = conv.buyerId && conv.buyerId.toString() === req.params.id;
+          const isSeller = conv.sellerId && conv.sellerId.toString() === req.params.id;
+          
+          convObj.currentUserRole = isBuyer ? 'buyer' : (isSeller ? 'seller' : null);
+          
           // Find the other member (not the current user)
           const otherMemberId = conv.members.find(
             (member) => member.toString() !== req.params.id
@@ -128,7 +142,9 @@ router.get(
                   avatar: otherUser.avatar,
                   phoneNumber: otherUser.phoneNumber,
                   address: otherUser.address,
+                  role: 'seller'
                 };
+                convObj.otherUserRole = 'seller';
               } else {
                 // If not found in Shop, try User collection
                 otherUser = await User.findById(otherMemberId).lean();
@@ -139,13 +155,16 @@ router.get(
                     email: otherUser.email,
                     avatar: otherUser.avatar,
                     phoneNumber: otherUser.phoneNumber,
+                    role: 'buyer'
                   };
+                  convObj.otherUserRole = 'buyer';
                 }
               }
             } catch (err) {
               console.error("Error fetching other user:", err);
             }
           }
+          
           if (conv.productId) {
             try {
               const product = await Product.findById(conv.productId).select(
@@ -207,7 +226,7 @@ router.get(
         conversations: finalConversations,
       });
     } catch (error) {
-      return next(new ErrorHandler(error), 500);
+      return next(new ErrorHandler(error.message, 500));
     }
   })
 );

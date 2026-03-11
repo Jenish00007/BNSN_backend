@@ -4,6 +4,7 @@ const catchAsyncErrors = require("../middleware/catchAsyncErrors");
 const express = require("express");
 const { upload } = require("../multer");
 const { getChatBlockInfo } = require("../utils/chatGuards");
+const { createChatNotification } = require("../utils/notificationHelper");
 const router = express.Router();
 const path = require("path");
 
@@ -38,6 +39,20 @@ router.post(
       });
 
       await message.save();
+
+      // Send chat notification to the recipient
+      try {
+        const messageText = messageData.text || (messageData.images ? "Sent an image" : "Sent a message");
+        await createChatNotification(
+          messageData.conversationId,
+          messageData.sender,
+          messageText
+        );
+        console.log("Chat notification sent successfully");
+      } catch (notificationError) {
+        console.error("Error sending chat notification:", notificationError);
+        // Don't fail the message creation if notification fails
+      }
 
       res.status(201).json({
         success: true,
