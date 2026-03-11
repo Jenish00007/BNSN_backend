@@ -17,7 +17,7 @@ const Product = require("./model/product");
 const { sendFCMNotification } = require("./utils/fcmService");
 const { getChatBlockInfo } = require("./utils/chatGuards");
 
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+const SIX_MONTHS_MS = 180 * 24 * 60 * 60 * 1000;
 const PRODUCT_EXPIRY_CHECK_INTERVAL = 12 * 60 * 60 * 1000; // every 12 hours
 
 // config
@@ -163,7 +163,7 @@ app.use("/v2", contactViewsRoutes);
 const markExpiredProducts = async () => {
   try {
     const now = new Date();
-    const expiryThreshold = new Date(now.getTime() - THIRTY_DAYS_MS);
+    const expiryThreshold = new Date(now.getTime() - SIX_MONTHS_MS);
 
     const result = await Product.updateMany(
       {

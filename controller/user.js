@@ -13,19 +13,13 @@ const crypto = require("crypto");
 
 const router = express.Router();
 
-router.post("/create-user", upload.single("file"), async (req, res, next) => {
+router.post("/create-user", async (req, res, next) => {
   try {
     console.log("Registration request received:", {
       body: req.body,
-      file: req.file
-        ? {
-            filename: req.file.filename,
-            location: req.file.location,
-          }
-        : null,
     });
 
-    const { name, email, password, phoneNumber } = req.body;
+    const { name, email, password, phoneNumber, avatar } = req.body;
 
     // Validate required fields
     if (!name || !email || !password || !phoneNumber) {
@@ -44,9 +38,14 @@ router.post("/create-user", upload.single("file"), async (req, res, next) => {
       return next(new ErrorHandler("User already exists", 400));
     }
 
-    if (!req.file) {
-      return next(new ErrorHandler("Please upload an avatar", 400));
+    // Check if phone number already exists
+    const userPhone = await User.findOne({ phoneNumber });
+    if (userPhone) {
+      return next(new ErrorHandler("Phone number already exists", 400));
     }
+
+    // Use provided avatar or default
+    const avatarUrl = avatar || 'https://static.vecteezy.com/system/resources/previews/024/183/535/original/male-avatar-portrait-of-a-young-man-with-glasses-illustration-of-male-character-in-modern-color-style-vector.jpg';
 
     // Create user object
     const userData = {
@@ -54,7 +53,7 @@ router.post("/create-user", upload.single("file"), async (req, res, next) => {
       email: email.toLowerCase().trim(),
       password,
       phoneNumber,
-      avatar: req.file.location,
+      avatar: avatarUrl,
     };
     console.log("Creating user with data:", {
       ...userData,
@@ -424,6 +423,28 @@ router.put(
       res.status(200).json({
         success: true,
         user,
+      });
+    } catch (error) {
+      return next(new ErrorHandler(error.message, 500));
+    }
+  })
+);
+
+// get user addresses only
+router.get(
+  "/get-user-addresses",
+  isAuthenticated,
+  catchAsyncErrors(async (req, res, next) => {
+    try {
+      const user = await User.findById(req.user.id).select("addresses");
+      
+      if (!user) {
+        return next(new ErrorHandler("User not found", 404));
+      }
+      
+      res.status(200).json({
+        success: true,
+        addresses: user.addresses,
       });
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));

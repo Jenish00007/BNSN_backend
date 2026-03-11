@@ -18,6 +18,17 @@ const conversationSchema = new mongoose.Schema(
     lastMessageId: {
       type: String,
     },
+    // Role identification fields
+    buyerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    sellerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Shop",
+      required: true,
+    },
   },
   { timestamps: true }
 );
