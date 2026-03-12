@@ -122,7 +122,67 @@ router.get(
           const isBuyer = conv.buyerId && conv.buyerId.toString() === req.params.id;
           const isSeller = conv.sellerId && conv.sellerId.toString() === req.params.id;
           
-          convObj.currentUserRole = isBuyer ? 'buyer' : (isSeller ? 'seller' : null);
+          // Fallback: if buyerId/sellerId are not populated, determine role by checking other member
+          let currentUserRole = isBuyer ? 'buyer' : (isSeller ? 'seller' : null);
+          let otherUserRole = null;
+          
+          if (!currentUserRole && conv.members && conv.members.length === 2) {
+            const otherMemberId = conv.members.find(
+              (member) => member.toString() !== req.params.id
+            );
+            
+            if (otherMemberId) {
+              try {
+                // Check if other member is a shop (seller) or user (buyer)
+                const Shop = require("../model/shop");
+                const User = require("../model/user");
+                
+                const otherUserShop = await Shop.findById(otherMemberId).lean();
+                if (otherUserShop) {
+                  // Other person is a shop, so current user is buyer
+                  currentUserRole = 'buyer';
+                  otherUserRole = 'seller';
+                } else {
+                  const otherUserUser = await User.findById(otherMemberId).lean();
+                  if (otherUserUser) {
+                    // Other person is a regular user, so current user could be seller or buyer
+                    // Check if current user is a shop
+                    const currentUserShop = await Shop.findById(req.params.id).lean();
+                    if (currentUserShop) {
+                      currentUserRole = 'seller';
+                      otherUserRole = 'buyer';
+                    } else {
+                      // Both are regular users - need to determine based on product ownership
+                      // For now, assume the person who initiated is buyer, but this needs product context
+                      // Let's check if the product belongs to the other user
+                      if (conv.productId) {
+                        const Product = require("../model/product");
+                        const product = await Product.findById(conv.productId);
+                        if (product && product.userId && product.userId.toString() === otherMemberId.toString()) {
+                          // Product belongs to other user, so they are seller
+                          currentUserRole = 'buyer';
+                          otherUserRole = 'seller';
+                        } else {
+                          // Default assumption - current user is buyer
+                          currentUserRole = 'buyer';
+                          otherUserRole = 'seller';
+                        }
+                      } else {
+                        // No product info, default assumption
+                        currentUserRole = 'buyer';
+                        otherUserRole = 'seller';
+                      }
+                    }
+                  }
+                }
+              } catch (err) {
+                console.error("Error determining fallback role:", err);
+              }
+            }
+          }
+          
+          convObj.currentUserRole = currentUserRole;
+          convObj.otherUserRole = otherUserRole;
           
           // Find the other member (not the current user)
           const otherMemberId = conv.members.find(
@@ -139,12 +199,9 @@ router.get(
                   _id: otherUser._id,
                   name: otherUser.name,
                   email: otherUser.email,
-                  avatar: otherUser.avatar,
                   phoneNumber: otherUser.phoneNumber,
-                  address: otherUser.address,
-                  role: 'seller'
+                  role: otherUserRole
                 };
-                convObj.otherUserRole = 'seller';
               } else {
                 // If not found in Shop, try User collection
                 otherUser = await User.findById(otherMemberId).lean();
@@ -168,7 +225,7 @@ router.get(
           if (conv.productId) {
             try {
               const product = await Product.findById(conv.productId).select(
-                "name status expiresAt soldAt inactiveAt"
+                "name status expiresAt soldAt inactiveAt userId"
               );
               if (product) {
                 convObj.product = {
@@ -178,6 +235,7 @@ router.get(
                   expiresAt: product.expiresAt,
                   soldAt: product.soldAt,
                   inactiveAt: product.inactiveAt,
+                  userId: product.userId
                 };
                 convObj.productStatus = product.status;
                 if (product.status && product.status !== "active") {
