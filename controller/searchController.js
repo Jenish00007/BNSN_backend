@@ -19,11 +19,16 @@ exports.searchProducts = async (req, res) => {
     // Build search query
     const query = {};
     
+    console.log('Search parameters:', { keyword, category, minPrice, maxPrice, rating, sortBy, sortOrder, page, limit });
+    
     if (keyword) {
       query.$or = [
         { name: { $regex: keyword, $options: "i" } },
         { description: { $regex: keyword, $options: "i" } },
-        { tags: { $regex: keyword, $options: "i" } }
+        { tags: { $regex: keyword, $options: "i" } },
+        // Also search by category name for better results
+        { 'category.name': { $regex: keyword, $options: "i" } },
+        { 'subcategory.name': { $regex: keyword, $options: "i" } }
       ];
     }
 
