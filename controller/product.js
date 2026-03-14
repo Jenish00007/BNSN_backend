@@ -36,7 +36,7 @@ const canManageProduct = (product, requesterId) => {
 // create product
 router.post(
   "/create-product",
-  upload.array("images"),
+  upload.array("images", 5), // Limit to 5 images maximum
   handleMulterError,
   catchAsyncErrors(async (req, res, next) => {
     try {
@@ -109,6 +109,18 @@ router.post(
       }
 
       const files = req.files;
+      console.log('Files received:', files?.length || 0);
+      console.log('File details:', files?.map(f => ({
+        originalname: f.originalname,
+        size: f.size,
+        mimetype: f.mimetype,
+        location: f.location
+      })));
+      
+      if (!files || files.length === 0) {
+        return next(new ErrorHandler("At least one image is required", 400));
+      }
+      
       const imageUrls = files.map((file) => file.location);
 
       const productData = req.body;
@@ -766,6 +778,8 @@ router.get(
       } = req.query;
       const { zoneId, moduleId } = req.headers;
 
+      console.log('Product search parameters:', { name, category_id, type, offset, limit, zoneId, moduleId });
+
       // Build search query
       const query = {};
 
@@ -775,6 +789,9 @@ router.get(
           { name: { $regex: name, $options: "i" } },
           { description: { $regex: name, $options: "i" } },
           { tags: { $regex: name, $options: "i" } },
+          // Also search by category name for better results
+          { 'category.name': { $regex: name, $options: "i" } },
+          { 'subcategory.name': { $regex: name, $options: "i" } }
         ];
       }
 
