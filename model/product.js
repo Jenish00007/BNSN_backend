@@ -5,7 +5,7 @@ const productSchema = new mongoose.Schema({
     type: Number,
     unique: true,
     sparse: true, // Allow null values but ensure uniqueness when present
-    index: true
+    index: true,
   },
   name: {
     type: String,
@@ -17,16 +17,21 @@ const productSchema = new mongoose.Schema({
   },
   category: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Category',
+    ref: "Category",
     required: [true, "Please select a category!"],
   },
   subcategory: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Subcategory',
+    ref: "Subcategory",
     required: false,
   },
   tags: {
     type: String,
+  },
+  priceType: {
+    type: String,
+    enum: ["Fixed", "Negotiable"],
+    required: false,
   },
   originalPrice: {
     type: Number,
@@ -41,7 +46,7 @@ const productSchema = new mongoose.Schema({
   },
   unit: {
     type: String,
-    enum: ['kg', 'pcs','g','ml','ltr','pack'],
+    enum: ["kg", "pcs", "g", "ml", "ltr", "pack"],
     required: [true, "Please select a unit!"],
   },
   unitCount: {
@@ -99,7 +104,7 @@ const productSchema = new mongoose.Schema({
   isPaid: {
     type: Boolean,
     default: false, // Default to free post
-    required: false
+    required: false,
   },
   status: {
     type: String,
@@ -109,7 +114,7 @@ const productSchema = new mongoose.Schema({
   },
   expiresAt: {
     type: Date,
-    default: () => Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
+    default: () => Date.now() + 180 * 24 * 60 * 60 * 1000, // 6 months
     index: true,
   },
   soldAt: {
@@ -136,7 +141,7 @@ const productSchema = new mongoose.Schema({
     type: Date,
     default: Date.now(),
   },
-  
+
   // Category-specific fields - Add all possible fields from category forms
   // ANIMAL category
   animalName: { type: String },
@@ -149,17 +154,17 @@ const productSchema = new mongoose.Schema({
   quantityAvailable: { type: String },
   feedType: { type: String },
   housingType: { type: String },
-  
+
   // BIRD category
   birdName: { type: String },
-  
+
   // TREE category
   treeName: { type: String },
   ageOfTree: { type: String },
   height: { type: String },
   trunkGirth: { type: String },
   purpose: { type: String },
-  
+
   // PADDY_RICE category
   paddyRiceName: { type: String },
   listingType: { type: String },
@@ -168,20 +173,20 @@ const productSchema = new mongoose.Schema({
   harvestYear: { type: String },
   organic: { type: String },
   pricePer: { type: String },
-  
+
   // VEGETABLE category
   vegetableName: { type: String },
   gradeQuality: { type: String },
   harvestDate: { type: String },
   packingType: { type: String },
-  
+
   // SEED category
   seedName: { type: String },
   seedType: { type: String },
-  
+
   // FRUIT category
   fruitName: { type: String },
-  
+
   // CAR category
   carBrand: { type: String },
   carModel: { type: String },
@@ -194,7 +199,7 @@ const productSchema = new mongoose.Schema({
   rcAvailable: { type: String },
   insuranceStatus: { type: String },
   insuranceExpiryDate: { type: String },
-  
+
   // BIKE category
   brand: { type: String },
   model: { type: String },
@@ -204,40 +209,40 @@ const productSchema = new mongoose.Schema({
   workingStatus: { type: String },
   batteryHealth: { type: String },
   networkType: { type: String },
-  
+
   // MACHINERY category
   machineryName: { type: String },
   modelNumber: { type: String },
   powerCapacity: { type: String },
   fuelPowerType: { type: String },
   phase: { type: String },
-  
+
   // PROPERTY category
   listingType: { type: String },
   propertyType: { type: String },
   size: { type: String },
   propertyCondition: { type: String },
-  
+
   // ELECTRONICS category
   electronicsName: { type: String },
   keySpecifications: { type: String },
   powerType: { type: String },
   purchaseYear: { type: String },
-  
+
   // MOBILE category
   mobileName: { type: String },
   modelName: { type: String },
   color: { type: String },
   ram: { type: String },
   storage: { type: String },
-  
+
   // FURNITURE category
   furnitureName: { type: String },
   materialType: { type: String },
   length: { type: String },
   width: { type: String },
   furnitureHeight: { type: String }, // Renamed to avoid conflict
-  
+
   // FASHION category
   fashionName: { type: String },
   productType: { type: String },
@@ -245,7 +250,7 @@ const productSchema = new mongoose.Schema({
   fashionSize: { type: String }, // Renamed to avoid conflict
   materialFabricType: { type: String },
   careInstructions: { type: String },
-  
+
   // JOB category
   jobTitle: { type: String },
   jobCategory: { type: String },
@@ -263,31 +268,31 @@ const productSchema = new mongoose.Schema({
   hiringType: { type: String },
   numberOfOpenings: { type: Number },
   joiningTime: { type: String },
-  
+
   // PET category
   petName: { type: String },
-  
+
   // MUSIC_INSTRUMENT category
   instrumentName: { type: String },
   instrumentType: { type: String },
   accessoriesIncluded: { type: [String] },
-  
+
   // GYM_EQUIPMENT category
   equipmentName: { type: String },
   weightCapacity: { type: String },
   voltagePhase: { type: String },
-  
+
   // FISH category
   fishName: { type: String },
   catchType: { type: String },
   catchDate: { type: String },
   freshnessLevel: { type: String },
   cleaned: { type: String },
-  
+
   // VEHICLE category
   vehicleName: { type: String },
   engineCapacityPower: { type: String },
-  
+
   // SERVICE category
   serviceName: { type: String },
   serviceTitle: { type: String },
@@ -296,17 +301,17 @@ const productSchema = new mongoose.Schema({
   experience: { type: String },
   availability: { type: String },
   pricingType: { type: String },
-  
+
   // SCRAP category
   scrapName: { type: String },
   scrapTypeName: { type: String },
   weightQuantity: { type: String },
-  
+
   // SPORTS_ITEM category
   sportsItemName: { type: String },
   sizeWeight: { type: String },
   ageGroup: { type: String },
-  
+
   // BOOK category
   bookCategory: { type: String },
   bookTitle: { type: String },
@@ -322,8 +327,13 @@ productSchema.pre("save", async function (next) {
   if (this.isNew && !this.productId) {
     try {
       // Get the highest productId from existing products
-      const lastProduct = await this.constructor.findOne({}, {}, { sort: { productId: -1 } });
-      const nextProductId = lastProduct && lastProduct.productId ? lastProduct.productId + 1 : 1;
+      const lastProduct = await this.constructor.findOne(
+        {},
+        {},
+        { sort: { productId: -1 } },
+      );
+      const nextProductId =
+        lastProduct && lastProduct.productId ? lastProduct.productId + 1 : 1;
       this.productId = nextProductId;
     } catch (error) {
       // If there's an error, default to 1
@@ -334,10 +344,10 @@ productSchema.pre("save", async function (next) {
 });
 
 // Add validation to ensure either shopId or userId exists
-productSchema.pre('validate', function(next) {
+productSchema.pre("validate", function (next) {
   if (!this.shopId && !this.userId) {
-    this.invalidate('shopId', 'Either shopId or userId must be provided');
-    this.invalidate('userId', 'Either shopId or userId must be provided');
+    this.invalidate("shopId", "Either shopId or userId must be provided");
+    this.invalidate("userId", "Either shopId or userId must be provided");
   }
   next();
 });
@@ -352,12 +362,12 @@ productSchema.index({ status: 1, expiresAt: 1 });
 
 productSchema.pre("save", function (next) {
   if (!this.expiresAt) {
-    this.expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    this.expiresAt = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000); // 6 months
   }
   next();
 });
 
 // Add timestamps to the schema
-productSchema.set('timestamps', true);
+productSchema.set("timestamps", true);
 
 module.exports = mongoose.model("Product", productSchema);

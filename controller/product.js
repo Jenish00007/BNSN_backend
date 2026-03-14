@@ -56,7 +56,7 @@ router.post(
       } else {
         // Neither provided
         return next(
-          new ErrorHandler("Either shopId or userId is required", 400)
+          new ErrorHandler("Either shopId or userId is required", 400),
         );
       }
 
@@ -102,25 +102,28 @@ router.post(
           return next(
             new ErrorHandler(
               "Subcategory not found or does not belong to the selected category!",
-              404
-            )
+              404,
+            ),
           );
         }
       }
 
       const files = req.files;
-      console.log('Files received:', files?.length || 0);
-      console.log('File details:', files?.map(f => ({
-        originalname: f.originalname,
-        size: f.size,
-        mimetype: f.mimetype,
-        location: f.location
-      })));
-      
+      console.log("Files received:", files?.length || 0);
+      console.log(
+        "File details:",
+        files?.map((f) => ({
+          originalname: f.originalname,
+          size: f.size,
+          mimetype: f.mimetype,
+          location: f.location,
+        })),
+      );
+
       if (!files || files.length === 0) {
         return next(new ErrorHandler("At least one image is required", 400));
       }
-      
+
       const imageUrls = files.map((file) => file.location);
 
       const productData = req.body;
@@ -128,13 +131,18 @@ router.post(
       productData.shop = shop;
 
       // Handle isPaid field - default to false (free post) if not provided
-      productData.isPaid = productData.isPaid === 'true' || productData.isPaid === true;
-      
-      console.log(`Creating product for user ${userId} in category ${category}, isPaid: ${productData.isPaid}`);
+      productData.isPaid =
+        productData.isPaid === "true" || productData.isPaid === true;
+
+      console.log(
+        `Creating product for user ${userId} in category ${category}, isPaid: ${productData.isPaid}`,
+      );
 
       const product = await Product.create(productData);
 
-      console.log(`Product created successfully: ${product._id}, isPaid: ${product.isPaid}`);
+      console.log(
+        `Product created successfully: ${product._id}, isPaid: ${product.isPaid}`,
+      );
 
       res.status(201).json({
         success: true,
@@ -143,7 +151,7 @@ router.post(
     } catch (error) {
       return next(new ErrorHandler(error.message, 400));
     }
-  })
+  }),
 );
 
 // get all products of a shop
@@ -168,7 +176,7 @@ router.get(
     } catch (error) {
       return next(new ErrorHandler(error.message, 400));
     }
-  })
+  }),
 );
 
 // delete product of a shop
@@ -189,7 +197,9 @@ router.delete(
         return next(new ErrorHandler("Product not found!", 404));
       }
 
-      console.log(`Deleting shop product: ${productId}, isPaid: ${productData.isPaid}`);
+      console.log(
+        `Deleting shop product: ${productId}, isPaid: ${productData.isPaid}`,
+      );
 
       await Product.findByIdAndDelete(productId);
 
@@ -200,7 +210,7 @@ router.delete(
     } catch (error) {
       return next(new ErrorHandler(error.message, 400));
     }
-  })
+  }),
 );
 
 // delete user product
@@ -224,10 +234,17 @@ router.delete(
 
       // Check if the product belongs to the authenticated user
       if (productData.userId.toString() !== userId.toString()) {
-        return next(new ErrorHandler("You are not authorized to delete this product!", 403));
+        return next(
+          new ErrorHandler(
+            "You are not authorized to delete this product!",
+            403,
+          ),
+        );
       }
 
-      console.log(`Deleting user product: ${productId}, userId: ${userId}, isPaid: ${productData.isPaid}`);
+      console.log(
+        `Deleting user product: ${productId}, userId: ${userId}, isPaid: ${productData.isPaid}`,
+      );
 
       await Product.findByIdAndDelete(productId);
 
@@ -238,10 +255,10 @@ router.delete(
         message: "Product deleted successfully!",
       });
     } catch (error) {
-      console.error('Error deleting user product:', error);
+      console.error("Error deleting user product:", error);
       return next(new ErrorHandler(error.message, 400));
     }
-  })
+  }),
 );
 
 // get all products
@@ -277,7 +294,7 @@ router.get(
     } catch (error) {
       return next(new ErrorHandler(error.message, 400));
     }
-  })
+  }),
 );
 
 // review for a product
@@ -310,7 +327,7 @@ router.put(
       };
 
       const isReviewed = product.reviews.find(
-        (rev) => rev.user._id === req.user._id
+        (rev) => rev.user._id === req.user._id,
       );
 
       if (isReviewed) {
@@ -337,7 +354,7 @@ router.put(
       await Order.findByIdAndUpdate(
         orderId,
         { $set: { "cart.$[elem].isReviewed": true } },
-        { arrayFilters: [{ "elem._id": productId }], new: true }
+        { arrayFilters: [{ "elem._id": productId }], new: true },
       );
 
       res.status(200).json({
@@ -347,7 +364,7 @@ router.put(
     } catch (error) {
       return next(new ErrorHandler(error.message, 400));
     }
-  })
+  }),
 );
 
 // all products --- for admin
@@ -370,7 +387,7 @@ router.get(
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));
     }
-  })
+  }),
 );
 
 // update product
@@ -394,28 +411,166 @@ router.put(
         return next(
           new ErrorHandler(
             "You are not authorized to update this product!",
-            403
-          )
+            403,
+          ),
         );
       }
 
-      // Parse fields from req.body
-      const {
-        name,
-        description,
-        category,
-        subcategory,
-        tags,
-        originalPrice,
-        discountPrice,
-        stock,
-        unit,
-        unitCount,
-        maxPurchaseQuantity,
-      } = req.body;
+      // Build update object: coerce types and sanitize for Product schema
+      const raw = req.body;
+      const updateData = {};
+
+      const num = (v) => {
+        if (v === undefined || v === null || v === "") return undefined;
+        const n = Number(String(v).trim());
+        return isNaN(n) ? undefined : n;
+      };
+      const str = (v) =>
+        v != null && String(v).trim() !== "" ? String(v).trim() : undefined;
+
+      if (raw.discountPrice !== undefined || raw.price !== undefined) {
+        const val = num(raw.discountPrice) ?? num(raw.price);
+        if (val !== undefined) updateData.discountPrice = val;
+      }
+      if (raw.stock !== undefined) {
+        const v = num(raw.stock);
+        if (v !== undefined) updateData.stock = v;
+      }
+      if (raw.unitCount !== undefined) {
+        const v = num(raw.unitCount);
+        if (v !== undefined) updateData.unitCount = v;
+      }
+      if (raw.maxPurchaseQuantity !== undefined) {
+        const v = num(raw.maxPurchaseQuantity);
+        if (v !== undefined) updateData.maxPurchaseQuantity = v;
+      }
+      if (raw.originalPrice !== undefined) {
+        const v = num(raw.originalPrice);
+        if (v !== undefined) updateData.originalPrice = v;
+      }
+      if (raw.name !== undefined) {
+        const v = str(raw.name);
+        if (v) updateData.name = v;
+      }
+      if (raw.description !== undefined) {
+        const v = str(raw.description);
+        if (v) updateData.description = v;
+      }
+      if (raw.category !== undefined && isValidObjectId(raw.category))
+        updateData.category = raw.category;
+      if (
+        raw.subcategory !== undefined &&
+        raw.subcategory &&
+        isValidObjectId(raw.subcategory)
+      )
+        updateData.subcategory = raw.subcategory;
+      if (raw.tags !== undefined) {
+        const v = str(raw.tags);
+        if (v !== undefined) updateData.tags = v;
+      }
+      if (raw.unit !== undefined) {
+        const v = str(raw.unit);
+        if (v) updateData.unit = v;
+      }
+
+      const CATEGORY_STRINGS = [
+        "priceType",
+        "brand",
+        "model",
+        "variant",
+        "manufacturingYear",
+        "fuelType",
+        "gearType",
+        "condition",
+        "kilometersDriven",
+        "numberOfOwners",
+        "rcAvailable",
+        "insuranceStatus",
+        "insuranceExpiryDate",
+        "animalName",
+        "breed",
+        "age",
+        "vegetableName",
+        "fruitName",
+        "seedName",
+        "machineryName",
+        "electronicsName",
+        "mobileName",
+        "furnitureName",
+        "fashionName",
+        "jobTitle",
+        "petName",
+        "instrumentName",
+        "equipmentName",
+        "fishName",
+        "vehicleName",
+        "serviceName",
+        "serviceTitle",
+        "scrapName",
+        "scrapTypeName",
+        "sportsItemName",
+        "bookCategory",
+        "bookTitle",
+        "city",
+        "area",
+        "pincode",
+      ];
+      CATEGORY_STRINGS.forEach((key) => {
+        if (raw[key] !== undefined) {
+          const v =
+            typeof raw[key] === "string"
+              ? str(raw[key])
+              : raw[key] != null
+                ? String(raw[key])
+                : undefined;
+          if (v !== undefined) updateData[key] = v;
+        }
+      });
+      if (raw.kilometersDriven !== undefined) {
+        const v = num(raw.kilometersDriven);
+        if (v !== undefined) updateData.kilometersDriven = v;
+      }
+      if (raw.accessoriesIncluded !== undefined) {
+        try {
+          const val = raw.accessoriesIncluded;
+          const arr =
+            typeof val === "string"
+              ? val.trim().startsWith("[")
+                ? JSON.parse(val)
+                : val
+                    .split(",")
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+              : Array.isArray(val)
+                ? val
+                : [];
+          if (Array.isArray(arr))
+            updateData.accessoriesIncluded = arr.map(String).filter(Boolean);
+        } catch (_) {}
+      }
+      [
+        "userId",
+        "shopId",
+        "shop",
+        "createdAt",
+        "updatedAt",
+        "__v",
+        "_id",
+        "reviews",
+        "productId",
+        "existingImages",
+      ].forEach((key) => delete updateData[key]);
+
+      // Parse for validation
+      const { name, description, category, subcategory } = req.body;
 
       // Validate category ID if provided
       if (category && !isValidObjectId(category)) {
+        console.log("Category validation failed:", {
+          category,
+          categoryType: typeof category,
+          isValid: isValidObjectId(category),
+        });
         return next(new ErrorHandler("Invalid category ID format", 400));
       }
       // Validate subcategory ID if provided
@@ -439,8 +594,8 @@ router.put(
           return next(
             new ErrorHandler(
               "Subcategory not found or does not belong to the selected category!",
-              404
-            )
+              404,
+            ),
           );
         }
       }
@@ -480,13 +635,17 @@ router.put(
       // Validate that we have at least one image
       if (images.length === 0) {
         return next(
-          new ErrorHandler("At least one product image is required", 400)
+          new ErrorHandler("At least one product image is required", 400),
         );
       }
 
-      // Validate image URLs (basic check)
+      // Validate image URLs (basic check) and filter out any invalid/null-like values
       const validImages = images.filter((img) => {
-        return typeof img === "string" && img.trim().length > 0;
+        if (typeof img !== "string") return false;
+        const trimmed = img.trim();
+        if (!trimmed.length) return false;
+        if (trimmed === "null" || trimmed === "undefined") return false;
+        return true;
       });
 
       console.log("Valid images after filtering:", validImages);
@@ -495,23 +654,13 @@ router.put(
         return next(new ErrorHandler("No valid images provided", 400));
       }
 
+      // Attach validated images to the update payload
+      updateData.images = validImages;
+
       const updatedProduct = await Product.findByIdAndUpdate(
         productId,
-        {
-          name,
-          description,
-          category,
-          subcategory,
-          tags,
-          originalPrice,
-          discountPrice,
-          stock,
-          unit,
-          unitCount,
-          maxPurchaseQuantity,
-          images: validImages,
-        },
-        { new: true, runValidators: true }
+        updateData,
+        { new: true, runValidators: true },
       );
 
       res.status(200).json({
@@ -522,7 +671,7 @@ router.put(
     } catch (error) {
       return next(new ErrorHandler(error.message, 400));
     }
-  })
+  }),
 );
 
 router.put(
@@ -542,14 +691,182 @@ router.put(
         return next(new ErrorHandler("Product not found!", 404));
       }
 
-      if (!product.userId || product.userId.toString() !== req.user.id.toString()) {
+      if (
+        !product.userId ||
+        product.userId.toString() !== req.user.id.toString()
+      ) {
         return next(
           new ErrorHandler(
             "You are not authorized to update this product!",
-            403
-          )
+            403,
+          ),
         );
       }
+
+      // Build update object: coerce types and sanitize for Product schema
+      const raw = req.body;
+      const updateData = {};
+
+      // Numeric fields (FormData sends strings)
+      const num = (v) => {
+        if (v === undefined || v === null || v === "") return undefined;
+        const n = Number(String(v).trim());
+        return isNaN(n) ? undefined : n;
+      };
+
+      if (raw.discountPrice !== undefined || raw.price !== undefined) {
+        const val = num(raw.discountPrice) ?? num(raw.price);
+        if (val !== undefined) updateData.discountPrice = val;
+      }
+      if (raw.stock !== undefined) {
+        const v = num(raw.stock);
+        if (v !== undefined) updateData.stock = v;
+      }
+      if (raw.unitCount !== undefined) {
+        const v = num(raw.unitCount);
+        if (v !== undefined) updateData.unitCount = v;
+      }
+      if (raw.maxPurchaseQuantity !== undefined) {
+        const v = num(raw.maxPurchaseQuantity);
+        if (v !== undefined) updateData.maxPurchaseQuantity = v;
+      }
+      if (raw.originalPrice !== undefined) {
+        const v = num(raw.originalPrice);
+        if (v !== undefined) updateData.originalPrice = v;
+      }
+
+      // String fields
+      const str = (v) =>
+        v != null && String(v).trim() !== "" ? String(v).trim() : undefined;
+      if (raw.name !== undefined) {
+        const v = str(raw.name);
+        if (v) updateData.name = v;
+      }
+      if (raw.description !== undefined) {
+        const v = str(raw.description);
+        if (v) updateData.description = v;
+      }
+      if (raw.category !== undefined && isValidObjectId(raw.category))
+        updateData.category = raw.category;
+      if (
+        raw.subcategory !== undefined &&
+        raw.subcategory &&
+        isValidObjectId(raw.subcategory)
+      )
+        updateData.subcategory = raw.subcategory;
+      if (raw.tags !== undefined) {
+        const v = str(raw.tags);
+        if (v !== undefined) updateData.tags = v;
+      }
+      if (raw.unit !== undefined) {
+        const v = str(raw.unit);
+        if (v) updateData.unit = v;
+      }
+
+      // Category-specific string fields (brand, model, variant, etc.)
+      const CATEGORY_STRINGS = [
+        "priceType",
+        "brand",
+        "model",
+        "variant",
+        "manufacturingYear",
+        "fuelType",
+        "gearType",
+        "condition",
+        "kilometersDriven",
+        "numberOfOwners",
+        "rcAvailable",
+        "insuranceStatus",
+        "insuranceExpiryDate",
+        "animalName",
+        "breed",
+        "age",
+        "milkYield",
+        "gender",
+        "vaccinated",
+        "birdName",
+        "treeName",
+        "vegetableName",
+        "fruitName",
+        "seedName",
+        "machineryName",
+        "electronicsName",
+        "mobileName",
+        "furnitureName",
+        "fashionName",
+        "jobTitle",
+        "petName",
+        "instrumentName",
+        "equipmentName",
+        "fishName",
+        "vehicleName",
+        "serviceName",
+        "serviceTitle",
+        "scrapName",
+        "scrapTypeName",
+        "sportsItemName",
+        "bookCategory",
+        "bookTitle",
+        "city",
+        "area",
+        "pincode",
+      ];
+      CATEGORY_STRINGS.forEach((key) => {
+        if (raw[key] !== undefined) {
+          const v =
+            typeof raw[key] === "string"
+              ? str(raw[key])
+              : raw[key] != null
+                ? String(raw[key])
+                : undefined;
+          if (v !== undefined) updateData[key] = v;
+        }
+      });
+
+      // kilometersDriven can be number
+      if (raw.kilometersDriven !== undefined) {
+        const v = num(raw.kilometersDriven);
+        if (v !== undefined) updateData.kilometersDriven = v;
+      }
+
+      // accessoriesIncluded: array of strings
+      if (raw.accessoriesIncluded !== undefined) {
+        try {
+          const val = raw.accessoriesIncluded;
+          const arr =
+            typeof val === "string"
+              ? val.trim().startsWith("[")
+                ? JSON.parse(val)
+                : val
+                    .split(",")
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+              : Array.isArray(val)
+                ? val
+                : [];
+          if (Array.isArray(arr))
+            updateData.accessoriesIncluded = arr.map(String).filter(Boolean);
+        } catch (_) {}
+      }
+
+      // Never overwrite these from client
+      [
+        "userId",
+        "shopId",
+        "shop",
+        "createdAt",
+        "updatedAt",
+        "__v",
+        "_id",
+        "reviews",
+        "productId",
+        "productCategory",
+        "productCategoryType",
+        "selectedCategoryId",
+        "categoryName",
+        "categoryKey",
+        "existingImages",
+      ].forEach((key) => delete updateData[key]);
 
       const {
         name,
@@ -566,6 +883,11 @@ router.put(
       } = req.body;
 
       if (category && !isValidObjectId(category)) {
+        console.log("User product category validation failed:", {
+          category,
+          categoryType: typeof category,
+          isValid: isValidObjectId(category),
+        });
         return next(new ErrorHandler("Invalid category ID format", 400));
       }
 
@@ -589,8 +911,8 @@ router.put(
           return next(
             new ErrorHandler(
               "Subcategory not found or does not belong to the selected category!",
-              404
-            )
+              404,
+            ),
           );
         }
       }
@@ -619,35 +941,29 @@ router.put(
 
       if (images.length === 0) {
         return next(
-          new ErrorHandler("At least one product image is required", 400)
+          new ErrorHandler("At least one product image is required", 400),
         );
       }
 
       const validImages = images.filter((img) => {
-        return typeof img === "string" && img.trim().length > 0;
+        if (typeof img !== "string") return false;
+        const trimmed = img.trim();
+        if (!trimmed.length) return false;
+        if (trimmed === "null" || trimmed === "undefined") return false;
+        return true;
       });
 
       if (validImages.length === 0) {
         return next(new ErrorHandler("No valid images provided", 400));
       }
 
+      // Attach validated images to the update payload
+      updateData.images = validImages;
+
       const updatedProduct = await Product.findByIdAndUpdate(
         productId,
-        {
-          name,
-          description,
-          category,
-          subcategory,
-          tags,
-          originalPrice,
-          discountPrice,
-          stock,
-          unit,
-          unitCount,
-          maxPurchaseQuantity,
-          images: validImages,
-        },
-        { new: true, runValidators: true }
+        updateData,
+        { new: true, runValidators: true },
       );
 
       res.status(200).json({
@@ -658,7 +974,7 @@ router.put(
     } catch (error) {
       return next(new ErrorHandler(error.message, 400));
     }
-  })
+  }),
 );
 
 // Get products by category/subcategory
@@ -686,7 +1002,7 @@ router.get(
             query.subcategory = id;
           } else {
             return next(
-              new ErrorHandler("Invalid category or subcategory ID", 404)
+              new ErrorHandler("Invalid category or subcategory ID", 404),
             );
           }
         }
@@ -727,7 +1043,7 @@ router.get(
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));
     }
-  })
+  }),
 );
 
 // get all products of a user (non-shop listings)
@@ -761,7 +1077,7 @@ router.get(
     } catch (error) {
       return next(new ErrorHandler(error.message, 400));
     }
-  })
+  }),
 );
 
 // Search products with category filter
@@ -778,21 +1094,40 @@ router.get(
       } = req.query;
       const { zoneId, moduleId } = req.headers;
 
-      console.log('Product search parameters:', { name, category_id, type, offset, limit, zoneId, moduleId });
+      console.log("Product search parameters:", {
+        name,
+        category_id,
+        type,
+        offset,
+        limit,
+        zoneId,
+        moduleId,
+      });
 
       // Build search query
       const query = {};
 
       // Add name search if provided
       if (name) {
-        query.$or = [
+        const orConditions = [
           { name: { $regex: name, $options: "i" } },
           { description: { $regex: name, $options: "i" } },
           { tags: { $regex: name, $options: "i" } },
-          // Also search by category name for better results
-          { 'category.name': { $regex: name, $options: "i" } },
-          { 'subcategory.name': { $regex: name, $options: "i" } }
         ];
+        // Search by category/subcategory name: find matching IDs first, then include in product query
+        const matchingCategories = await Category.find({
+          name: { $regex: name, $options: "i" },
+        }).select("_id");
+        const matchingSubcategories = await Subcategory.find({
+          name: { $regex: name, $options: "i" },
+        }).select("_id");
+        const categoryIds = matchingCategories.map((c) => c._id);
+        const subcategoryIds = matchingSubcategories.map((s) => s._id);
+        if (categoryIds.length > 0)
+          orConditions.push({ category: { $in: categoryIds } });
+        if (subcategoryIds.length > 0)
+          orConditions.push({ subcategory: { $in: subcategoryIds } });
+        query.$or = orConditions;
       }
 
       // Add category filter if provided and not '0'
@@ -867,7 +1202,7 @@ router.get(
           }
 
           return productObj;
-        })
+        }),
       );
 
       res.status(200).json({
@@ -880,7 +1215,7 @@ router.get(
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));
     }
-  })
+  }),
 );
 
 // Get all available units
@@ -951,7 +1286,7 @@ router.get(
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));
     }
-  })
+  }),
 );
 
 router.put(
@@ -966,7 +1301,9 @@ router.put(
 
       const requesterId = getRequesterId(req);
       if (!canManageProduct(product, requesterId)) {
-        return next(new ErrorHandler("Not authorized to update this product", 403));
+        return next(
+          new ErrorHandler("Not authorized to update this product", 403),
+        );
       }
 
       product.status = "sold";
@@ -985,7 +1322,7 @@ router.put(
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));
     }
-  })
+  }),
 );
 
 router.put(
@@ -1000,7 +1337,9 @@ router.put(
 
       const requesterId = getRequesterId(req);
       if (!canManageProduct(product, requesterId)) {
-        return next(new ErrorHandler("Not authorized to update this product", 403));
+        return next(
+          new ErrorHandler("Not authorized to update this product", 403),
+        );
       }
 
       product.status = "inactive";
@@ -1016,7 +1355,7 @@ router.put(
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));
     }
-  })
+  }),
 );
 
 router.put(
@@ -1031,7 +1370,9 @@ router.put(
 
       const requesterId = getRequesterId(req);
       if (!canManageProduct(product, requesterId)) {
-        return next(new ErrorHandler("Not authorized to update this product", 403));
+        return next(
+          new ErrorHandler("Not authorized to update this product", 403),
+        );
       }
 
       product.status = "active";
@@ -1051,7 +1392,7 @@ router.put(
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));
     }
-  })
+  }),
 );
 
 module.exports = router;

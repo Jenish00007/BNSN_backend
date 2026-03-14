@@ -33,7 +33,7 @@ connectDatabase();
 // create server
 const server = http.listen(process.env.PORT, () => {
   console.log(`Server is running on http://localhost:${process.env.PORT}`);
-})
+});
 
 // initialize socket.io
 const io = new Server(server, {
@@ -54,7 +54,7 @@ app.use(
   cors({
     origin: true, // Allow all origins for mobile apps
     credentials: true,
-  })
+  }),
 );
 
 // Remove local uploads static route since we're using S3
@@ -177,23 +177,29 @@ const markExpiredProducts = async () => {
         $or: [
           { expiresAt: { $lte: now } },
           { expiresAt: null, createdAt: { $lte: expiryThreshold } },
-          { expiresAt: { $exists: false }, createdAt: { $lte: expiryThreshold } },
+          {
+            expiresAt: { $exists: false },
+            createdAt: { $lte: expiryThreshold },
+          },
         ],
       },
       {
         status: "inactive",
         inactiveAt: now,
         inactiveReason: "Automatically marked inactive after 30 days",
-      }
+      },
     );
 
     if (result.modifiedCount) {
       console.log(
-        `[Product Lifecycle] Marked ${result.modifiedCount} product(s) as inactive due to expiry`
+        `[Product Lifecycle] Marked ${result.modifiedCount} product(s) as inactive due to expiry`,
       );
     }
   } catch (error) {
-    console.error("[Product Lifecycle] Failed to mark expired products:", error);
+    console.error(
+      "[Product Lifecycle] Failed to mark expired products:",
+      error,
+    );
   }
 };
 
@@ -227,49 +233,69 @@ io.on("connection", (socket) => {
       console.log("=".repeat(80));
       console.log("🔵 [SEND-MESSAGE] Event received");
       console.log("=".repeat(80));
-      
+
       const { conversationId, sender, text } = data;
-      console.log(`[SEND-MESSAGE] Data:`, { conversationId, sender, text: text.substring(0, 50) });
+      console.log(`[SEND-MESSAGE] Data:`, {
+        conversationId,
+        sender,
+        text: text.substring(0, 50),
+      });
 
       // Validate input data
       if (!conversationId || !sender || !text) {
         console.log(`[SEND-MESSAGE] ❌ Invalid data: missing required fields`);
-        socket.emit("error", { message: "Invalid message data: missing required fields" });
+        socket.emit("error", {
+          message: "Invalid message data: missing required fields",
+        });
         return;
       }
 
       // Check if conversation exists, if not, create a temporary one for testing
       let conversation = await Conversation.findById(conversationId).lean();
       if (!conversation) {
-        console.log(`[SEND-MESSAGE] ⚠️ Conversation not found, creating temporary conversation for testing`);
-        
+        console.log(
+          `[SEND-MESSAGE] ⚠️ Conversation not found, creating temporary conversation for testing`,
+        );
+
         // Create a temporary conversation for testing purposes
         conversation = new Conversation({
           _id: conversationId,
           members: [sender, "system-test-user"],
           createdAt: new Date(),
-          updatedAt: new Date()
+          updatedAt: new Date(),
         });
-        
+
         try {
           await conversation.save();
-          console.log(`[SEND-MESSAGE] ✅ Temporary conversation created for testing`);
+          console.log(
+            `[SEND-MESSAGE] ✅ Temporary conversation created for testing`,
+          );
         } catch (saveError) {
-          console.log(`[SEND-MESSAGE] ❌ Failed to create temporary conversation:`, saveError.message);
-          socket.emit("error", { message: "Failed to create conversation for testing" });
+          console.log(
+            `[SEND-MESSAGE] ❌ Failed to create temporary conversation:`,
+            saveError.message,
+          );
+          socket.emit("error", {
+            message: "Failed to create conversation for testing",
+          });
           return;
         }
       }
 
       // Skip chat gate checks for test conversations
-      if (conversation.members && conversation.members.includes("system-test-user")) {
-        console.log(`[SEND-MESSAGE] 🧪 Test conversation detected, skipping chat gates`);
+      if (
+        conversation.members &&
+        conversation.members.includes("system-test-user")
+      ) {
+        console.log(
+          `[SEND-MESSAGE] 🧪 Test conversation detected, skipping chat gates`,
+        );
       } else {
         // Apply chat gates for real conversations
         const chatGate = await getChatBlockInfo(conversationId);
         if (chatGate.blocked) {
           console.log(
-            `[SEND-MESSAGE] Conversation ${conversationId} is blocked: ${chatGate.reason}`
+            `[SEND-MESSAGE] Conversation ${conversationId} is blocked: ${chatGate.reason}`,
           );
           socket.emit("chat-disabled", {
             conversationId,
@@ -316,18 +342,26 @@ io.on("connection", (socket) => {
       if (!conversation.members?.includes("system-test-user")) {
         try {
           if (conversation?.members) {
-            console.log(`[NOTIFICATION] Conversation has members: ${conversation.members.length}`);
-            console.log(`[NOTIFICATION] Conversation members:`, conversation.members);
+            console.log(
+              `[NOTIFICATION] Conversation has members: ${conversation.members.length}`,
+            );
+            console.log(
+              `[NOTIFICATION] Conversation members:`,
+              conversation.members,
+            );
             console.log(`[NOTIFICATION] Sender:`, sender);
 
             // Find other member (not the sender)
             const otherMemberId = conversation.members.find(
-              (member) => member.toString() !== sender.toString()
+              (member) => member.toString() !== sender.toString(),
             );
 
             console.log(`[NOTIFICATION] Other member ID:`, otherMemberId);
 
-            if (otherMemberId && otherMemberId.toString() !== sender.toString()) {
+            if (
+              otherMemberId &&
+              otherMemberId.toString() !== sender.toString()
+            ) {
               // Get sender's name for notification
               console.log(`[NOTIFICATION] Looking up sender: ${sender}`);
               let senderName = "Someone";
@@ -341,7 +375,9 @@ io.on("connection", (socket) => {
                 senderName = senderShop.name;
                 console.log(`[NOTIFICATION] Sender is Shop: ${senderName}`);
               } else {
-                console.log(`[NOTIFICATION] ⚠️ Sender not found as User or Shop`);
+                console.log(
+                  `[NOTIFICATION] ⚠️ Sender not found as User or Shop`,
+                );
               }
 
               // Try to find other member as Shop first, then User
@@ -354,34 +390,51 @@ io.on("connection", (socket) => {
               console.log(
                 `[NOTIFICATION] Looking up receiver - Shop: ${
                   otherShop ? "Found" : "Not found"
-                }, User: ${otherUser ? "Found" : "Not found"}`
+                }, User: ${otherUser ? "Found" : "Not found"}`,
               );
 
               if (otherShop) {
-                // Check for both pushToken and expoPushToken (backward compatibility)
-                receiverPushToken =
-                  otherShop.pushToken || otherShop.expoPushToken;
-                if (receiverPushToken) {
+                // Check for pushToken, fcmToken, expoPushToken (backward compatibility)
+                const shopToken =
+                  otherShop.pushToken ||
+                  otherShop.fcmToken ||
+                  otherShop.expoPushToken;
+                if (
+                  shopToken &&
+                  typeof shopToken === "string" &&
+                  shopToken.trim() &&
+                  shopToken !== "undefined"
+                ) {
+                  receiverPushToken = shopToken.trim();
                   receiverType = "Shop";
                   const tokenType = otherShop.pushToken
                     ? "pushToken"
-                    : "expoPushToken";
+                    : otherShop.fcmToken
+                      ? "fcmToken"
+                      : "expoPushToken";
                   console.log(
                     `[NOTIFICATION] ✅ Found Shop ${tokenType} for ${otherMemberId} (${
                       otherShop.name
-                    }): ${receiverPushToken.substring(0, 20)}...`
+                    }): ${receiverPushToken.substring(0, 20)}...`,
                   );
                 }
               }
 
               if (!receiverPushToken && otherUser) {
-                receiverPushToken = otherUser.pushToken;
-                if (receiverPushToken) {
+                // Check pushToken and fcmToken (some clients may store as fcmToken)
+                const userToken = otherUser.pushToken || otherUser.fcmToken;
+                if (
+                  userToken &&
+                  typeof userToken === "string" &&
+                  userToken.trim() &&
+                  userToken !== "undefined"
+                ) {
+                  receiverPushToken = userToken.trim();
                   receiverType = "User";
                   console.log(
                     `[NOTIFICATION] ✅ Found User push token for ${otherMemberId} (${
                       otherUser.name
-                    }): ${receiverPushToken.substring(0, 20)}...`
+                    }): ${receiverPushToken.substring(0, 20)}...`,
                   );
                 }
               }
@@ -392,7 +445,7 @@ io.on("connection", (socket) => {
                   text.length > 50 ? text.substring(0, 50) + "..." : text;
 
                 console.log(
-                  `[NOTIFICATION] 📤 Sending FCM notification to ${receiverType} ${otherMemberId}: "${notificationTitle}" - "${notificationBody}"`
+                  `[NOTIFICATION] 📤 Sending FCM notification to ${receiverType} ${otherMemberId}: "${notificationTitle}" - "${notificationBody}"`,
                 );
 
                 const result = await sendFCMNotification(
@@ -405,34 +458,39 @@ io.on("connection", (socket) => {
                     sender: sender,
                     message: text,
                     senderName: senderName,
-                  }
+                  },
                 );
 
                 if (result.success) {
                   console.log(
                     `[NOTIFICATION] ✅ Push notification sent successfully to ${receiverType} ${otherMemberId} (${senderName} → ${
                       receiverType === "Shop" ? otherShop.name : otherUser.name
-                    })`
+                    })`,
                   );
                 } else {
                   console.error(
-                    `[NOTIFICATION] ❌ Failed to send push notification to ${otherMemberId}: ${result.error}`
+                    `[NOTIFICATION] ❌ Failed to send push notification to ${otherMemberId}: ${result.error}`,
                   );
                 }
               } else {
                 console.log(
-                  `[NOTIFICATION] ⏭️ Skipping notification - no pushToken available for ${otherMemberId}`
+                  `[NOTIFICATION] ⏭️ Skipping notification - no pushToken available for ${otherMemberId}`,
                 );
               }
             } else {
-              console.log(`[NOTIFICATION] ⚠️ No other member found in conversation`);
+              console.log(
+                `[NOTIFICATION] ⚠️ No other member found in conversation`,
+              );
             }
           } else {
             console.log(`[NOTIFICATION] ⚠️ Conversation has no members`);
           }
         } catch (notifError) {
           console.error("=".repeat(80));
-          console.error("[NOTIFICATION] ❌ Error in push notification handler:", notifError);
+          console.error(
+            "[NOTIFICATION] ❌ Error in push notification handler:",
+            notifError,
+          );
           console.error("[NOTIFICATION] Error message:", notifError.message);
           console.error("[NOTIFICATION] Error stack:", notifError.stack);
           console.error("=".repeat(80));
@@ -463,7 +521,7 @@ io.on("connection", (socket) => {
           sender: { $ne: userId },
           read: { $ne: true },
         },
-        { $set: { read: true } }
+        { $set: { read: true } },
       );
 
       // Emit to all users in the room that messages are read
