@@ -1,5 +1,7 @@
 const Product = require("../model/product");
 const Shop = require("../model/shop");
+const Category = require("../model/Category");
+const Subcategory = require("../model/Subcategory");
 
 // Search products with filters
 exports.searchProducts = async (req, res) => {
@@ -13,23 +15,46 @@ exports.searchProducts = async (req, res) => {
       sortBy = "createdAt",
       sortOrder = "desc",
       page = 1,
-      limit = 10
+      limit = 10,
     } = req.query;
 
     // Build search query
     const query = {};
-    
-    console.log('Search parameters:', { keyword, category, minPrice, maxPrice, rating, sortBy, sortOrder, page, limit });
-    
+
+    console.log("Search parameters:", {
+      keyword,
+      category,
+      minPrice,
+      maxPrice,
+      rating,
+      sortBy,
+      sortOrder,
+      page,
+      limit,
+    });
+
     if (keyword) {
-      query.$or = [
+      const orConditions = [
         { name: { $regex: keyword, $options: "i" } },
         { description: { $regex: keyword, $options: "i" } },
         { tags: { $regex: keyword, $options: "i" } },
-        // Also search by category name for better results
-        { 'category.name': { $regex: keyword, $options: "i" } },
-        { 'subcategory.name': { $regex: keyword, $options: "i" } }
       ];
+
+      // Search by category/subcategory name: find matching IDs first, then include in product query
+      const matchingCategories = await Category.find({
+        name: { $regex: keyword, $options: "i" },
+      }).select("_id");
+      const matchingSubcategories = await Subcategory.find({
+        name: { $regex: keyword, $options: "i" },
+      }).select("_id");
+      const categoryIds = matchingCategories.map((c) => c._id);
+      const subcategoryIds = matchingSubcategories.map((s) => s._id);
+      if (categoryIds.length > 0)
+        orConditions.push({ category: { $in: categoryIds } });
+      if (subcategoryIds.length > 0)
+        orConditions.push({ subcategory: { $in: subcategoryIds } });
+
+      query.$or = orConditions;
     }
 
     if (category) {
@@ -63,12 +88,12 @@ exports.searchProducts = async (req, res) => {
       products,
       total,
       currentPage: Number(page),
-      totalPages: Math.ceil(total / limit)
+      totalPages: Math.ceil(total / limit),
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message,
     });
   }
 };
@@ -82,17 +107,17 @@ exports.searchShops = async (req, res) => {
       sortBy = "createdAt",
       sortOrder = "desc",
       page = 1,
-      limit = 10
+      limit = 10,
     } = req.query;
 
     // Build search query
     const query = {};
-    
+
     if (keyword) {
       query.$or = [
         { name: { $regex: keyword, $options: "i" } },
         { description: { $regex: keyword, $options: "i" } },
-        { address: { $regex: keyword, $options: "i" } }
+        { address: { $regex: keyword, $options: "i" } },
       ];
     }
 
@@ -114,12 +139,12 @@ exports.searchShops = async (req, res) => {
       shops,
       total,
       currentPage: Number(page),
-      totalPages: Math.ceil(total / limit)
+      totalPages: Math.ceil(total / limit),
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message,
     });
   }
-}; 
+};

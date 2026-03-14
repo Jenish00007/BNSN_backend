@@ -30,13 +30,28 @@ const sendFCMNotification = async (fcmToken, title, body, data = {}) => {
     }
 
     // Determine notification type and configure accordingly
-    const notificationType = data.type || 'GENERAL';
-    const isChatMessage = notificationType === 'NEW_MESSAGE';
-    
+    const notificationType = data.type || "GENERAL";
+    const isChatMessage = notificationType === "NEW_MESSAGE";
+
+    // Debug logging to trace notification issues
+    try {
+      console.log("[FCM] Preparing notification", {
+        notificationType,
+        title,
+        bodyPreview: typeof body === "string" ? body.substring(0, 50) : "",
+        tokenPrefix:
+          typeof fcmToken === "string" ? fcmToken.substring(0, 15) + "..." : "",
+        tokenLength:
+          typeof fcmToken === "string" ? fcmToken.length : "non-string",
+      });
+    } catch (logError) {
+      // Logging itself should never break sending; ignore safely
+    }
+
     let androidSound = "default";
     let androidChannelId = "default";
     let iossSound = "default";
-    
+
     if (isChatMessage) {
       // Chat message specific configuration
       androidSound = "default"; // Use default sound for compatibility
@@ -63,7 +78,9 @@ const sendFCMNotification = async (fcmToken, title, body, data = {}) => {
           body,
           // Remove sound field - will use system default
           channelId: androidChannelId, // Use dedicated channel for chat
-          vibrateTimingsMillis: isChatMessage ? [0, 250, 500, 250] : [0, 1000, 500, 1000, 500, 1000],
+          vibrateTimingsMillis: isChatMessage
+            ? [0, 250, 500, 250]
+            : [0, 1000, 500, 1000, 500, 1000],
           lightSettings: {
             color: isChatMessage ? "#007AFF" : "#FF6B00", // Blue for chat, Orange for orders
             lightOnDurationMillis: isChatMessage ? 500 : 1000,
@@ -91,7 +108,7 @@ const sendFCMNotification = async (fcmToken, title, body, data = {}) => {
             // Remove custom sound - will use system default
             badge: 1,
             contentAvailable: 1, // Wake app in background
-            interruptionLevel: "critical", // iOS 15+
+            interruptionLevel: "time-sensitive", // iOS 15+ - "critical" requires special Apple entitlement
           },
         },
       },
@@ -117,6 +134,15 @@ const sendFCMNotification = async (fcmToken, title, body, data = {}) => {
     };
 
     const response = await admin.messaging().send(message);
+
+    try {
+      console.log("[FCM] Notification sent", {
+        notificationType,
+        messageId: response,
+      });
+    } catch (logError) {
+      // Ignore logging failure
+    }
 
     return {
       success: true,
@@ -160,7 +186,7 @@ const sendFCMNotificationToMultiple = async (
   fcmTokens,
   title,
   body,
-  data = {}
+  data = {},
 ) => {
   try {
     if (!Array.isArray(fcmTokens) || fcmTokens.length === 0) {
@@ -253,7 +279,7 @@ const sendFCMNotificationToMultiple = async (
   } catch (error) {
     console.error(
       "Error sending FCM notifications to multiple devices:",
-      error
+      error,
     );
 
     let errorMessage = error.message;
@@ -288,9 +314,7 @@ const sendFCMNotificationToDeliverymen = async (deliverymen, order) => {
     // Filter deliverymen with valid FCM tokens
     const validDeliverymen = deliverymen.filter(
       (dm) =>
-        dm.pushToken &&
-        dm.pushToken.trim() !== "" &&
-        dm.pushToken !== null
+        dm.pushToken && dm.pushToken.trim() !== "" && dm.pushToken !== null,
     );
 
     if (validDeliverymen.length === 0) {
@@ -348,14 +372,14 @@ const sendFCMNotificationToDeliverymen = async (deliverymen, order) => {
     const results = [];
     for (const deliveryman of validDeliverymen) {
       console.log(
-        `📤 Sending to: ${deliveryman.name} (ID: ${deliveryman._id})`
+        `📤 Sending to: ${deliveryman.name} (ID: ${deliveryman._id})`,
       );
       try {
         const result = await sendFCMNotification(
           deliveryman.pushToken,
           title,
           body,
-          data
+          data,
         );
 
         results.push({
@@ -368,7 +392,7 @@ const sendFCMNotificationToDeliverymen = async (deliverymen, order) => {
 
         if (result.success) {
           console.log(
-            `✅ SUCCESS: ${deliveryman.name} - Message ID: ${result.messageId}`
+            `✅ SUCCESS: ${deliveryman.name} - Message ID: ${result.messageId}`,
           );
         } else {
           console.error(`❌ FAILED: ${deliveryman.name} - ${result.error}`);
@@ -408,7 +432,7 @@ const sendFCMNotificationToDeliverymen = async (deliverymen, order) => {
   } catch (error) {
     console.error(
       "\n❌ Error sending FCM notifications to deliverymen:",
-      error
+      error,
     );
     return {
       success: false,
@@ -518,7 +542,7 @@ const sendFCMNotificationToSeller = async (shop, order) => {
     const response = await adminSeller.messaging().send(message);
 
     console.log(
-      `✅ FCM notification sent successfully to seller: ${shop.name}`
+      `✅ FCM notification sent successfully to seller: ${shop.name}`,
     );
 
     return {

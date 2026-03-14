@@ -31,7 +31,7 @@ router.post("/create-user", async (req, res, next) => {
     const userEmail = await User.findOne({ email: email.toLowerCase().trim() });
     console.log(
       "Existing user check:",
-      userEmail ? "User found" : "No user found"
+      userEmail ? "User found" : "No user found",
     );
 
     if (userEmail) {
@@ -45,7 +45,9 @@ router.post("/create-user", async (req, res, next) => {
     }
 
     // Use provided avatar or default
-    const avatarUrl = avatar || 'https://static.vecteezy.com/system/resources/previews/024/183/535/original/male-avatar-portrait-of-a-young-man-with-glasses-illustration-of-male-character-in-modern-color-style-vector.jpg';
+    const avatarUrl =
+      avatar ||
+      "https://static.vecteezy.com/system/resources/previews/024/183/535/original/male-avatar-portrait-of-a-young-man-with-glasses-illustration-of-male-character-in-modern-color-style-vector.jpg";
 
     // Create user object
     const userData = {
@@ -103,8 +105,13 @@ router.put(
     try {
       const { token } = req.body;
 
-      if (!token) {
+      if (!token || typeof token !== "string") {
         return next(new ErrorHandler("Push token is required", 400));
+      }
+
+      const trimmedToken = token.trim();
+      if (!trimmedToken || trimmedToken === "undefined") {
+        return next(new ErrorHandler("Invalid push token", 400));
       }
 
       const user = await User.findById(req.user.id);
@@ -113,11 +120,13 @@ router.put(
         return next(new ErrorHandler("User not found", 404));
       }
 
-      // Update push token
-      user.pushToken = token;
+      // Update push token (store trimmed, valid token)
+      user.pushToken = trimmedToken;
       await user.save();
 
-      console.log(`FCM push token updated for user ${user.email}: ${token}`);
+      console.log(
+        `FCM push token updated for user ${user.email}: ${trimmedToken.substring(0, 30)}...`,
+      );
 
       res.status(200).json({
         success: true,
@@ -135,7 +144,7 @@ router.put(
       console.error("Error updating push token:", error);
       return next(new ErrorHandler(error.message, 500));
     }
-  })
+  }),
 );
 
 // login user
@@ -154,7 +163,7 @@ router.post(
       if ((!email && !phoneNumber) || !password) {
         console.log("Missing credentials");
         return next(
-          new ErrorHandler("Please provide email/phone and password", 400)
+          new ErrorHandler("Please provide email/phone and password", 400),
         );
       }
 
@@ -162,7 +171,7 @@ router.post(
       let user;
       if (email) {
         user = await User.findOne({ email: email.toLowerCase().trim() }).select(
-          "+password"
+          "+password",
         );
       } else {
         user = await User.findOne({ phoneNumber }).select("+password");
@@ -170,7 +179,7 @@ router.post(
 
       console.log(
         "User lookup result:",
-        user ? "User found" : "User not found"
+        user ? "User found" : "User not found",
       );
 
       if (!user) {
@@ -182,22 +191,31 @@ router.post(
       const isPasswordValid = await user.comparePassword(password);
       console.log(
         "Password validation:",
-        isPasswordValid ? "Valid" : "Invalid"
+        isPasswordValid ? "Valid" : "Invalid",
       );
 
       if (!isPasswordValid) {
         console.log("Invalid password");
         return next(
-          new ErrorHandler("Please provide the correct information", 400)
+          new ErrorHandler("Please provide the correct information", 400),
         );
       }
 
-      // Update push token if provided
+      // Update push token if provided (validate and trim)
       let shouldPersist = false;
-      if (pushToken && user.pushToken !== pushToken) {
-        user.pushToken = pushToken;
-        console.log(`Push token updated for user ${user.email}: ${pushToken}`);
-        shouldPersist = true;
+      if (pushToken && typeof pushToken === "string") {
+        const trimmedPushToken = pushToken.trim();
+        if (
+          trimmedPushToken &&
+          trimmedPushToken !== "undefined" &&
+          user.pushToken !== trimmedPushToken
+        ) {
+          user.pushToken = trimmedPushToken;
+          console.log(
+            `Push token updated for user ${user.email}: ${trimmedPushToken.substring(0, 30)}...`,
+          );
+          shouldPersist = true;
+        }
       }
 
       if (
@@ -219,7 +237,7 @@ router.post(
         if (locationAddress) {
           // Check if user already has a "Current Location" address
           const existingCurrentLocationIndex = user.addresses.findIndex(
-            (addr) => addr.addressType === "Current Location"
+            (addr) => addr.addressType === "Current Location",
           );
 
           if (existingCurrentLocationIndex !== -1) {
@@ -270,7 +288,7 @@ router.post(
       console.error("Login error:", error);
       return next(new ErrorHandler(error.message, 500));
     }
-  })
+  }),
 );
 
 // load user
@@ -291,7 +309,7 @@ router.get(
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));
     }
-  })
+  }),
 );
 
 // log out user
@@ -310,7 +328,7 @@ router.get(
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));
     }
-  })
+  }),
 );
 
 // update user info
@@ -319,7 +337,8 @@ router.put(
   isAuthenticated,
   catchAsyncErrors(async (req, res, next) => {
     try {
-      const { email, phoneNumber, name, address, hidePhoneNumber, password } = req.body;
+      const { email, phoneNumber, name, address, hidePhoneNumber, password } =
+        req.body;
 
       const user = await User.findById(req.user.id);
 
@@ -345,7 +364,7 @@ router.put(
       // Update password if provided
       if (password) {
         user.password = password;
-        user.markModified('password');
+        user.markModified("password");
       }
 
       await user.save();
@@ -357,7 +376,7 @@ router.put(
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));
     }
-  })
+  }),
 );
 
 // update user avatar
@@ -387,7 +406,7 @@ router.put(
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));
     }
-  })
+  }),
 );
 
 // update user addresses
@@ -399,16 +418,16 @@ router.put(
       const user = await User.findById(req.user.id);
 
       const sameTypeAddress = user.addresses.find(
-        (address) => address.addressType === req.body.addressType
+        (address) => address.addressType === req.body.addressType,
       );
       if (sameTypeAddress) {
         return next(
-          new ErrorHandler(`${req.body.addressType} address already exists`)
+          new ErrorHandler(`${req.body.addressType} address already exists`),
         );
       }
 
       const existsAddress = user.addresses.find(
-        (address) => address._id === req.body._id
+        (address) => address._id === req.body._id,
       );
 
       if (existsAddress) {
@@ -427,7 +446,7 @@ router.put(
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));
     }
-  })
+  }),
 );
 
 // get user addresses only
@@ -437,11 +456,11 @@ router.get(
   catchAsyncErrors(async (req, res, next) => {
     try {
       const user = await User.findById(req.user.id).select("addresses");
-      
+
       if (!user) {
         return next(new ErrorHandler("User not found", 404));
       }
-      
+
       res.status(200).json({
         success: true,
         addresses: user.addresses,
@@ -449,7 +468,7 @@ router.get(
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));
     }
-  })
+  }),
 );
 
 // delete user address
@@ -467,7 +486,7 @@ router.delete(
         {
           _id: userId,
         },
-        { $pull: { addresses: { _id: addressId } } }
+        { $pull: { addresses: { _id: addressId } } },
       );
 
       const user = await User.findById(userId);
@@ -476,7 +495,7 @@ router.delete(
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));
     }
-  })
+  }),
 );
 
 // update user password
@@ -488,7 +507,7 @@ router.put(
       const user = await User.findById(req.user.id).select("+password");
 
       const isPasswordMatched = await user.comparePassword(
-        req.body.oldPassword
+        req.body.oldPassword,
       );
 
       if (!isPasswordMatched) {
@@ -502,7 +521,7 @@ router.put(
     different passwords and an error is returned. */
       if (req.body.newPassword !== req.body.confirmPassword) {
         return next(
-          new ErrorHandler("Password doesn't matched with each other!", 400)
+          new ErrorHandler("Password doesn't matched with each other!", 400),
         );
       }
       user.password = req.body.newPassword;
@@ -516,7 +535,7 @@ router.put(
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));
     }
-  })
+  }),
 );
 
 // find user infoormation with the userId
@@ -533,7 +552,7 @@ router.get(
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));
     }
-  })
+  }),
 );
 
 // all users --- for admin
@@ -543,9 +562,13 @@ router.get(
   isAdmin("Admin"),
   catchAsyncErrors(async (req, res, next) => {
     try {
-      const users = await User.find().select("userId name email phoneNumber role createdAt avatar isPhoneVerified").sort({
-        createdAt: -1,
-      });
+      const users = await User.find()
+        .select(
+          "userId name email phoneNumber role createdAt avatar isPhoneVerified",
+        )
+        .sort({
+          createdAt: -1,
+        });
       res.status(201).json({
         success: true,
         users,
@@ -553,7 +576,7 @@ router.get(
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));
     }
-  })
+  }),
 );
 
 // delete users --- admin
@@ -567,7 +590,7 @@ router.delete(
 
       if (!user) {
         return next(
-          new ErrorHandler("User is not available with this id", 400)
+          new ErrorHandler("User is not available with this id", 400),
         );
       }
 
@@ -580,7 +603,7 @@ router.delete(
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));
     }
-  })
+  }),
 );
 
 // forgot password
@@ -618,7 +641,7 @@ router.post(
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));
     }
-  })
+  }),
 );
 
 // verify OTP
@@ -639,7 +662,7 @@ router.post(
         user = await User.findOne({ phoneNumber });
       } else {
         return next(
-          new ErrorHandler("Please provide either email or phone number", 400)
+          new ErrorHandler("Please provide either email or phone number", 400),
         );
       }
 
@@ -650,7 +673,7 @@ router.post(
       // Prevent admin user login through OTP
       if (user.role === "Admin") {
         return next(
-          new ErrorHandler("Admin users cannot login through OTP", 403)
+          new ErrorHandler("Admin users cannot login through OTP", 403),
         );
       }
 
@@ -690,7 +713,7 @@ router.post(
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));
     }
-  })
+  }),
 );
 
 // reset password
@@ -726,7 +749,7 @@ router.put(
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));
     }
-  })
+  }),
 );
 
 // Send OTP for phone login
@@ -745,7 +768,7 @@ router.post(
 
       if (!user) {
         return next(
-          new ErrorHandler("No user found with this phone number", 404)
+          new ErrorHandler("No user found with this phone number", 404),
         );
       }
 
@@ -766,7 +789,7 @@ router.post(
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));
     }
-  })
+  }),
 );
 
 // login admin
@@ -801,7 +824,7 @@ router.post(
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));
     }
-  })
+  }),
 );
 
 module.exports = router;
