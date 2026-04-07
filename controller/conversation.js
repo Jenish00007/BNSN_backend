@@ -319,4 +319,17 @@ router.put(
   })
 );
 
+// delete a conversation
+router.delete(
+  "/delete-conversation/:id",
+  catchAsyncErrors(async (req, res, next) => {
+    try {
+      await Conversation.findByIdAndDelete(req.params.id);
+      res.status(200).json({ success: true, message: "Conversation deleted" });
+    } catch (error) {
+      return next(new ErrorHandler(error.message, 500));
+    }
+  })
+);
+
 module.exports = router;
