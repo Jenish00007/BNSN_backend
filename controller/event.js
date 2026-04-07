@@ -370,7 +370,7 @@ router.get(
           "shopId",
           "name avatar address email phoneNumber hidePhoneNumber"
         )
-        .populate("userId", "name avatar email phoneNumber hidePhoneNumber");
+        .populate("userId", "name avatar email phoneNumber hidePhoneNumber address addresses");
 
       if (!product) {
         return next(new ErrorHandler("Product not found!", 404));
@@ -397,6 +397,8 @@ router.get(
           email: productObj.userId.email,
           phoneNumber: productObj.userId.phoneNumber,
           hidePhoneNumber: productObj.userId.hidePhoneNumber,
+          address: productObj.userId.address,
+          addresses: productObj.userId.addresses,
         };
       }
 
