@@ -76,6 +76,8 @@ const sendFCMNotification = async (fcmToken, title, body, data = {}) => {
         notification: {
           title,
           body,
+          icon: "notification_icon", // Expo registers app.json notification.icon as this drawable
+          color: isChatMessage ? "#007AFF" : "#F16122", // tint color for the icon
           // Remove sound field - will use system default
           channelId: androidChannelId, // Use dedicated channel for chat
           vibrateTimingsMillis: isChatMessage
@@ -216,6 +218,8 @@ const sendFCMNotificationToMultiple = async (
         notification: {
           title,
           body,
+          icon: "notification_icon",
+          color: "#F16122",
           sound: "alarm",
           channelId: "order_alert_channel",
           vibrateTimingsMillis: [0, 1000, 500, 1000, 500, 1000],
@@ -491,6 +495,8 @@ const sendFCMNotificationToSeller = async (shop, order) => {
         notification: {
           title,
           body,
+          icon: "notification_icon",
+          color: "#F16122",
           sound: "alarm",
           channelId: "seller_order_channel",
           vibrateTimingsMillis: [0, 1000, 500, 1000, 500, 1000],
