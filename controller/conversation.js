@@ -120,11 +120,11 @@ router.get(
           
           // Determine current user's role in this conversation
           const isBuyer = conv.buyerId && conv.buyerId.toString() === req.params.id;
-          const isSeller = conv.sellerId && conv.sellerId.toString() === req.params.id;
-          
+          const isSellerUser = conv.sellerId && conv.sellerId.toString() === req.params.id;
+
           // Fallback: if buyerId/sellerId are not populated, determine role by checking other member
-          let currentUserRole = isBuyer ? 'buyer' : (isSeller ? 'seller' : null);
-          let otherUserRole = null;
+          let currentUserRole = isBuyer ? 'buyer' : (isSellerUser ? 'seller' : null);
+          let otherUserRole = isBuyer ? 'seller' : (isSellerUser ? 'buyer' : null);
           
           if (!currentUserRole && conv.members && conv.members.length === 2) {
             const otherMemberId = conv.members.find(
@@ -158,12 +158,20 @@ router.get(
                       if (conv.productId) {
                         const Product = require("../model/product");
                         const product = await Product.findById(conv.productId);
-                        if (product && product.userId && product.userId.toString() === otherMemberId.toString()) {
-                          // Product belongs to other user, so they are seller
-                          currentUserRole = 'buyer';
-                          otherUserRole = 'seller';
+                        if (product && product.userId) {
+                          if (product.userId.toString() === otherMemberId.toString()) {
+                            // Product belongs to other user — they are the seller
+                            currentUserRole = 'buyer';
+                            otherUserRole = 'seller';
+                          } else if (product.userId.toString() === req.params.id) {
+                            // Product belongs to current user — they are the seller
+                            currentUserRole = 'seller';
+                            otherUserRole = 'buyer';
+                          } else {
+                            currentUserRole = 'buyer';
+                            otherUserRole = 'seller';
+                          }
                         } else {
-                          // Default assumption - current user is buyer
                           currentUserRole = 'buyer';
                           otherUserRole = 'seller';
                         }
