@@ -1,4 +1,6 @@
+const crypto = require("crypto");
 const User = require("../model/user");
+const Payment = require("../model/payment");
 const ErrorHandler = require("../utils/ErrorHandler");
 const catchAsyncErrors = require("../middleware/catchAsyncErrors");
 
@@ -46,7 +48,12 @@ exports.getUserContactViews = catchAsyncErrors(async (req, res, next) => {
 // - contactCredits are reduced only for NEW unique contacts (and only when not unlimited)
 exports.updateUserContactViews = catchAsyncErrors(async (req, res, next) => {
   const { userId } = req.params;
-  const { contactViews, viewedContacts } = req.body;
+  const { viewedContacts } = req.body;
+
+  // Ownership check: users can only update their own contact views
+  if (req.user._id.toString() !== userId) {
+    return next(new ErrorHandler("Unauthorized", 403));
+  }
 
   // Load current user so we can calculate deltas safely
   const existingUser = await User.findById(userId);
@@ -143,25 +150,68 @@ exports.resetContactViews = catchAsyncErrors(async (req, res, next) => {
 
 // POST add contact credits
 exports.addContactCredits = catchAsyncErrors(async (req, res, next) => {
-  const { userId, credits, amount, currency } = req.body;
+  const {
+    userId,
+    credits,
+    amount,
+    razorpay_payment_id,
+    razorpay_payment_link_id,
+    razorpay_payment_link_reference_id,
+    razorpay_payment_link_status,
+    razorpay_signature,
+  } = req.body;
 
   if (!userId || !credits || !amount) {
-    return next(
-      new ErrorHandler("Please provide userId, credits, and amount", 400),
-    );
+    return next(new ErrorHandler("Please provide userId, credits, and amount", 400));
+  }
+
+  // Ownership check: users can only add credits to themselves
+  if (req.user._id.toString() !== userId) {
+    return next(new ErrorHandler("Unauthorized", 403));
+  }
+
+  // Require Razorpay payment proof
+  if (!razorpay_payment_id || !razorpay_signature) {
+    return next(new ErrorHandler("Payment verification required", 400));
+  }
+
+  // Verify Razorpay payment-link signature to confirm payment actually happened
+  const sign = `${razorpay_payment_link_id}|${razorpay_payment_link_reference_id}|${razorpay_payment_link_status}|${razorpay_payment_id}`;
+  const expectedSign = crypto
+    .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+    .update(sign)
+    .digest("hex");
+
+  if (razorpay_signature !== expectedSign) {
+    return next(new ErrorHandler("Invalid payment signature", 400));
+  }
+
+  // Prevent replay attacks: reject if this payment ID was already used
+  const existingPayment = await Payment.findOne({ transactionId: razorpay_payment_id });
+  if (existingPayment) {
+    return next(new ErrorHandler("This payment has already been processed", 400));
   }
 
   const user = await User.findById(userId);
-
   if (!user) {
     return next(new ErrorHandler("User not found", 404));
   }
 
   // Add credits to user
   const updatedCredits = (user.contactCredits || 7) + credits;
+  await User.findByIdAndUpdate(userId, { contactCredits: updatedCredits });
 
-  await User.findByIdAndUpdate(userId, {
-    contactCredits: updatedCredits,
+  // Record the payment to prevent replay attacks
+  await Payment.create({
+    user: userId,
+    category: "contact_credits",
+    amount,
+    currency: "INR",
+    status: "completed",
+    paymentMethod: "razorpay",
+    transactionId: razorpay_payment_id,
+    gatewayResponse: { razorpay_payment_link_id, razorpay_payment_link_status },
+    completedAt: new Date(),
   });
 
   res.status(200).json({
@@ -181,6 +231,11 @@ exports.activateUnlimitedSubscription = catchAsyncErrors(
       return next(
         new ErrorHandler("Please provide userId, plan, and duration", 400),
       );
+    }
+
+    // Ownership check: users can only activate subscription for themselves
+    if (req.user._id.toString() !== userId) {
+      return next(new ErrorHandler("Unauthorized", 403));
     }
 
     const user = await User.findById(userId);

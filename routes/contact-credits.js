@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../model/user');
+const { isAuthenticated } = require('../middleware/auth');
 
-// Add contact credits to user
-router.post('/add', async (req, res) => {
+// Add contact credits to user (auth + payment verification in contactViewsController route; this is a fallback)
+router.post('/add', isAuthenticated, async (req, res) => {
   try {
     const { userId, credits, duration, amount, currency, plan } = req.body;
 
@@ -119,7 +120,7 @@ router.get('/:userId', async (req, res) => {
 });
 
 // Update contact views (when user views a contact)
-router.put('/:userId', async (req, res) => {
+router.put('/:userId', isAuthenticated, async (req, res) => {
   try {
     const { userId } = req.params;
     const { contactViews, viewedContacts } = req.body;
