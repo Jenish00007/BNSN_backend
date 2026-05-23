@@ -186,23 +186,12 @@ exports.addContactCredits = catchAsyncErrors(async (req, res, next) => {
     return next(new ErrorHandler("Invalid payment signature", 400));
   }
 
-  // Prevent replay attacks: reject if this payment ID was already used
-  const existingPayment = await Payment.findOne({ transactionId: razorpay_payment_id });
-  if (existingPayment) {
-    return next(new ErrorHandler("This payment has already been processed", 400));
-  }
-
-  const user = await User.findById(userId);
-  if (!user) {
-    return next(new ErrorHandler("User not found", 404));
-  }
-
-  // Add credits to user
-  const updatedCredits = (user.contactCredits || 7) + credits;
-  await User.findByIdAndUpdate(userId, { contactCredits: updatedCredits });
-
-  // Record the payment to prevent replay attacks
-  await Payment.create({
+  // Create the Payment record FIRST — the unique index on transactionId is the
+  // atomic guard against replays and concurrent duplicate requests.
+  // If this payment_id was already used, save() throws a duplicate-key error
+  // (code 11000) which the global error handler converts to a 400 response,
+  // and NO credits are ever added.
+  const paymentRecord = new Payment({
     user: userId,
     category: "contact_credits",
     amount,
@@ -213,11 +202,23 @@ exports.addContactCredits = catchAsyncErrors(async (req, res, next) => {
     gatewayResponse: { razorpay_payment_link_id, razorpay_payment_link_status },
     completedAt: new Date(),
   });
+  await paymentRecord.save();
+
+  // Payment accepted — atomically increment credits (safe under concurrency)
+  const updatedUser = await User.findByIdAndUpdate(
+    userId,
+    { $inc: { contactCredits: credits } },
+    { new: true }
+  );
+
+  if (!updatedUser) {
+    return next(new ErrorHandler("User not found", 404));
+  }
 
   res.status(200).json({
     success: true,
-    contactCredits: updatedCredits,
-    contactViews: user.contactViews,
+    contactCredits: updatedUser.contactCredits,
+    contactViews: updatedUser.contactViews,
     message: `${credits} credits added successfully`,
   });
 });
