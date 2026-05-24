@@ -23,6 +23,11 @@ logs/
 # Testing
 coverage/
 
+# Environment variables (never commit secrets)
+.env
+config/.env
+*.env
+
 # Temporary files
 tmp/
 temp/ config/firebase-service-account.json
