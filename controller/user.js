@@ -11,6 +11,8 @@ const sendToken = require("../utils/jwtToken");
 const { isAuthenticated, isAdmin } = require("../middleware/auth");
 const crypto = require("crypto");
 
+const { sendSMS } = require('../utils/smsService');
+
 const router = express.Router();
 
 router.post("/create-user", async (req, res, next) => {
@@ -776,15 +778,11 @@ router.post(
       const otp = user.generateOTP();
       await user.save();
 
-      // TODO: Integrate with SMS service to send OTP
-      // For development, we'll just return the OTP
-      console.log(`OTP for ${phoneNumber}: ${otp}`);
+      await sendSMS(phoneNumber, `Your BSNS OTP is: ${otp}. Valid for 10 minutes. Do not share it with anyone.`);
 
       res.status(200).json({
         success: true,
         message: "OTP sent successfully",
-        // Remove this in production
-        otp: process.env.NODE_ENV === "development" ? otp : undefined,
       });
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));

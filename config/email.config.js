@@ -1,30 +1,35 @@
-const nodemailer = require("nodemailer");
+const axios = require('axios');
 
-// Email transporter setup (using Gmail SMTP)
-const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-        user: process.env.NODE_MAILER_EMAIL,  // Replace with your email
-        pass: process.env.NODE_MAILER_PASSWORD,  // Use an app password for security
-    },
-});
+const BREVO_EMAIL_URL = 'https://api.brevo.com/v3/smtp/email';
 
-// Function to send an email
 const sendEmail = async (to, subject, html) => {
-    try {
-        const mailOptions = {
-            from: process.env.FROM_MAIL_ID,
-            to,
-            subject,
-            html, // Changed from text to html
-        };
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) {
+    throw new Error('BREVO_API_KEY is not set in environment variables');
+  }
 
-        const info = await transporter.sendMail(mailOptions);
-        console.log("Email sent:", info.response);
-    } catch (error) {
-        console.error("Error sending email:", error);
-        throw error; // Re-throw the error to handle it in the controller
+  const response = await axios.post(
+    BREVO_EMAIL_URL,
+    {
+      sender: {
+        name: process.env.BREVO_EMAIL_SENDER_NAME || '7ARK',
+        email: process.env.FROM_MAIL_ID
+      },
+      to: [{ email: to }],
+      subject,
+      htmlContent: html
+    },
+    {
+      headers: {
+        'api-key': apiKey,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      }
     }
+  );
+
+  console.log('Email sent via Brevo:', response.data.messageId);
+  return response.data;
 };
 
-module.exports = sendEmail; 
+module.exports = sendEmail;
