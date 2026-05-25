@@ -26,6 +26,29 @@ const hasRepeatingDigits = (number) => {
   return false;
 };
 
+// Create Razorpay order (for SDK-based checkout)
+router.post(
+  "/create-order",
+  catchAsyncErrors(async (req, res) => {
+    const { amount } = req.body;
+    if (!amount || isNaN(amount) || amount <= 0) {
+      return res.status(400).json({ success: false, message: "Valid amount is required" });
+    }
+    const order = await razorpay.orders.create({
+      amount: Math.round(amount * 100), // paise
+      currency: razorpayConfig.currency,
+      receipt: "order_" + Date.now(),
+    });
+    res.status(200).json({
+      success: true,
+      order_id: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      key_id: razorpayConfig.key_id,
+    });
+  })
+);
+
 // Create payment link
 router.post(
   "/process",

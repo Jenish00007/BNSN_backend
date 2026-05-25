@@ -37,3 +37,4 @@ config/firebase-seller-service-account.json
 .config/firebase-seller-service-account.json
 /firebase-service-account.json
 /firebase-seller-service-account.json
+/.env
