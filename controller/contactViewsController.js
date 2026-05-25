@@ -155,9 +155,7 @@ exports.addContactCredits = catchAsyncErrors(async (req, res, next) => {
     credits,
     amount,
     razorpay_payment_id,
-    razorpay_payment_link_id,
-    razorpay_payment_link_reference_id,
-    razorpay_payment_link_status,
+    razorpay_order_id,
     razorpay_signature,
   } = req.body;
 
@@ -175,8 +173,8 @@ exports.addContactCredits = catchAsyncErrors(async (req, res, next) => {
     return next(new ErrorHandler("Payment verification required", 400));
   }
 
-  // Verify Razorpay payment-link signature to confirm payment actually happened
-  const sign = `${razorpay_payment_link_id}|${razorpay_payment_link_reference_id}|${razorpay_payment_link_status}|${razorpay_payment_id}`;
+  // Verify Razorpay SDK order signature: order_id|payment_id
+  const sign = `${razorpay_order_id}|${razorpay_payment_id}`;
   const expectedSign = crypto
     .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
     .update(sign)
@@ -186,11 +184,6 @@ exports.addContactCredits = catchAsyncErrors(async (req, res, next) => {
     return next(new ErrorHandler("Invalid payment signature", 400));
   }
 
-  // Create the Payment record FIRST — the unique index on transactionId is the
-  // atomic guard against replays and concurrent duplicate requests.
-  // If this payment_id was already used, save() throws a duplicate-key error
-  // (code 11000) which the global error handler converts to a 400 response,
-  // and NO credits are ever added.
   const paymentRecord = new Payment({
     user: userId,
     category: "contact_credits",
@@ -199,7 +192,7 @@ exports.addContactCredits = catchAsyncErrors(async (req, res, next) => {
     status: "completed",
     paymentMethod: "razorpay",
     transactionId: razorpay_payment_id,
-    gatewayResponse: { razorpay_payment_link_id, razorpay_payment_link_status },
+    gatewayResponse: { razorpay_order_id },
     completedAt: new Date(),
   });
   await paymentRecord.save();
