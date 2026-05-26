@@ -15,16 +15,6 @@ const razorpay = new Razorpay({
   key_secret: razorpayConfig.key_secret,
 });
 
-// Helper function to check for repeating digits
-const hasRepeatingDigits = (number) => {
-  const digits = number.toString().split('');
-  for (let i = 0; i < digits.length - 1; i++) {
-    if (digits[i] === digits[i + 1]) {
-      return true;
-    }
-  }
-  return false;
-};
 
 // Create Razorpay order (for SDK-based checkout)
 router.post(
@@ -103,14 +93,6 @@ router.post(
         return res.status(400).json({
           success: false,
           message: "Invalid contact number format. Must be a 10-digit number starting with 6-9"
-        });
-      }
-
-      // Check for repeating digits
-      if (hasRepeatingDigits(contact)) {
-        return res.status(400).json({
-          success: false,
-          message: "Contact number cannot contain repeating digits"
         });
       }
 
