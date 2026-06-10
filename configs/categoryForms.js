@@ -24,7 +24,8 @@ const CATEGORY_FORMS = {
   SERVICE: { name: 'Other Services', price: 49, freePosts: 1 },
   SCRAP: { name: 'Scrap', price: 0, freePosts: 999 },
   SPORTS_ITEM: { name: 'Sports Items', price: 29, freePosts: 1 },
-  BOOK: { name: 'Books', price: 0, freePosts: 999 }
+  BOOK: { name: 'Books', price: 0, freePosts: 999 },
+  CYCLE: { name: 'Cycles', price: 49, freePosts: 1 }
 }
 
 const getCategoryForm = (categoryName) => {
